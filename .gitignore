@@ -3,6 +3,7 @@ node_modules/
 dist/
 out/
 *.log
+*.tsbuildinfo
 
 # Local media is user data and should not be committed.
 storage/uploads/*
