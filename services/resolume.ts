@@ -139,13 +139,22 @@ export class ResolumeService {
 
   async parameters(target: ResolumeControlTarget): Promise<ResolumeParameter[]> {
     const composition = (await this.composition()) as Record<string, unknown>;
-    const node = targetNode(composition, target);
+    const summaryNode = targetNode(composition, target);
+    let directNode: Record<string, unknown> | null = null;
 
-    if (!node) {
+    try {
+      directNode = (await this.request(targetPath(target))) as Record<string, unknown>;
+    } catch {
+      directNode = null;
+    }
+
+    if (!summaryNode && !directNode) {
       throw new Error("Resolume target was not found in the composition");
     }
 
-    return extractParameters(node).sort((a, b) => groupRank(a.group) - groupRank(b.group) || a.name.localeCompare(b.name));
+    return dedupeParameters([...extractParameters(directNode ?? {}), ...extractParameters(summaryNode ?? {})]).sort(
+      (a, b) => groupRank(a.group) - groupRank(b.group) || a.name.localeCompare(b.name)
+    );
   }
 
   async updateParameter(id: string, value: ResolumeParameterValue): Promise<{ message: string }> {
@@ -196,20 +205,35 @@ export class ResolumeService {
     const body = effect.trim();
     const payloads: RequestInit[] = [
       { method: "POST", headers: { "content-type": "text/plain" }, body },
-      { method: "POST", body: JSON.stringify({ effect: body, id: body, name: body }) }
+      { method: "POST", body: JSON.stringify({ id: body }) },
+      { method: "POST", body: JSON.stringify({ effect: body, id: body, name: body }) },
+      { method: "POST", body: JSON.stringify({ name: body }) }
+    ];
+    const endpoints = [
+      `${basePath}/effects/add`,
+      `${basePath}/video/effects/add`,
+      `${basePath}/audio/effects/add`,
+      `${basePath}/effects/video/add`,
+      `${basePath}/effects/audio/add`
     ];
     let lastError: unknown;
 
-    for (const payload of payloads) {
-      try {
-        await this.request(`${basePath}/effects/add`, payload);
-        return { message: `Added effect ${body}` };
-      } catch (error) {
-        lastError = error;
+    for (const endpoint of endpoints) {
+      for (const payload of payloads) {
+        try {
+          await this.request(endpoint, payload);
+          return { message: `Added effect ${body}` };
+        } catch (error) {
+          lastError = error;
+        }
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error("Could not add Resolume effect");
+    throw new Error(
+      `Could not add effect through this Resolume REST API. Last error: ${
+        lastError instanceof Error ? lastError.message : "unknown error"
+      }. Try adding the effect in Resolume first; its parameters will appear here after refresh.`
+    );
   }
 
   async removeEffect(target: ResolumeControlTarget, effectIndex: number): Promise<{ message: string }> {
@@ -217,8 +241,29 @@ export class ResolumeService {
       throw new Error("Effect index must be 1 or greater");
     }
 
-    await this.request(`${targetPath(target)}/effects/${effectIndex}/remove`, { method: "POST" });
-    return { message: `Removed effect ${effectIndex}` };
+    const basePath = targetPath(target);
+    const endpoints = [
+      `${basePath}/effects/${effectIndex}/remove`,
+      `${basePath}/effects/${effectIndex}`,
+      `${basePath}/video/effects/${effectIndex}/remove`,
+      `${basePath}/video/effects/${effectIndex}`,
+      `${basePath}/audio/effects/${effectIndex}/remove`,
+      `${basePath}/audio/effects/${effectIndex}`
+    ];
+    let lastError: unknown;
+
+    for (const endpoint of endpoints) {
+      for (const method of ["POST", "DELETE"]) {
+        try {
+          await this.request(endpoint, { method });
+          return { message: `Removed effect ${effectIndex}` };
+        } catch (error) {
+          lastError = error;
+        }
+      }
+    }
+
+    throw new Error(`Could not remove effect slot ${effectIndex}. Last error: ${lastError instanceof Error ? lastError.message : "unknown error"}`);
   }
 
   private async request<T = unknown>(pathname: string, init: RequestInit = {}): Promise<T> {
@@ -262,7 +307,20 @@ export class ResolumeService {
 }
 
 function extractArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["items", "value", "clips", "layers", "effects"]) {
+      if (Array.isArray(record[key])) {
+        return record[key];
+      }
+    }
+  }
+
+  return [];
 }
 
 function targetNode(composition: Record<string, unknown>, target: ResolumeControlTarget): Record<string, unknown> | null {
@@ -344,7 +402,7 @@ function isParameterObject(value: unknown): boolean {
   }
 
   const record = value as Record<string, unknown>;
-  return Boolean(record.id && "value" in record && ("name" in record || "type" in record));
+  return Boolean(record.id && "value" in record);
 }
 
 function dedupeParameters(parameters: ResolumeParameter[]): ResolumeParameter[] {
