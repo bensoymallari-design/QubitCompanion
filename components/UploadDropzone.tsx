@@ -17,29 +17,20 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
       return;
     }
 
-    const form = new FormData();
-    selected.forEach((file) => form.append("files", file));
     setProgress(8);
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        const request = new XMLHttpRequest();
-        request.open("POST", "/api/upload");
-        request.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            setProgress(Math.max(8, Math.round((event.loaded / event.total) * 100)));
-          }
-        };
-        request.onload = () => {
-          if (request.status >= 200 && request.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(extractError(request.responseText) || "Upload failed"));
-          }
-        };
-        request.onerror = () => reject(new Error("Upload failed. Check disk space and supported formats."));
-        request.send(form);
-      });
+      let completedBytes = 0;
+      const totalBytes = selected.reduce((total, file) => total + file.size, 0);
+
+      for (const file of selected) {
+        await uploadSingleFile(file, (loaded) => {
+          const percent = totalBytes > 0 ? Math.round(((completedBytes + loaded) / totalBytes) * 100) : 100;
+          setProgress(Math.min(100, Math.max(8, percent)));
+        });
+        completedBytes += file.size;
+      }
+
       notify(`Uploaded ${selected.length} file${selected.length === 1 ? "" : "s"}`, "success");
       onUploaded();
     } catch (error) {
@@ -90,6 +81,33 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
       )}
     </div>
   );
+}
+
+function uploadSingleFile(file: File, onProgress: (loaded: number) => void): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", "/api/upload/raw");
+    request.setRequestHeader("x-file-name", encodeURIComponent(file.name));
+    if (file.type) {
+      request.setRequestHeader("content-type", file.type);
+    }
+    request.timeout = 0;
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(event.loaded);
+      }
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(extractError(request.responseText) || `Upload failed with status ${request.status}`));
+      }
+    };
+    request.onerror = () => reject(new Error("Upload failed. Check Wi-Fi stability, disk space, and supported formats."));
+    request.ontimeout = () => reject(new Error("Upload timed out. Try a smaller file or a stronger local network connection."));
+    request.send(file);
+  });
 }
 
 function extractError(raw: string): string | null {
