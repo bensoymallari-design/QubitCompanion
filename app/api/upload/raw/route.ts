@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     const filename = decodeURIComponent(request.headers.get("x-file-name") ?? "");
     const mimeType = request.headers.get("content-type") ?? undefined;
-    const size = Number(request.headers.get("content-length") ?? "0");
+    const size = Number(request.headers.get("x-file-size") ?? request.headers.get("content-length") ?? "0");
 
     if (!filename) {
       return jsonError(new Error("Missing upload filename"), 400);

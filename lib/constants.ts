@@ -22,7 +22,9 @@ export const SUPPORTED_MIME_TYPES = new Set([
   "image/gif",
   "video/mp4",
   "video/quicktime",
-  "video/webm"
+  "video/webm",
+  "video/x-matroska",
+  "application/webm"
 ]);
 
 export const MEDIA_KIND_BY_EXTENSION: Record<MediaExtension, MediaKind> = {
