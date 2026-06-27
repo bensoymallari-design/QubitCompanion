@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
+import { formatBytes } from "@/utils/format";
 
 const ACCEPT = ".png,.jpg,.jpeg,.gif,.mp4,.mov,.webm,image/png,image/jpeg,image/gif,video/mp4,video/quicktime,video/webm";
 
@@ -9,6 +10,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
+  const [currentUpload, setCurrentUpload] = useState<string | null>(null);
   const { notify } = useToast();
 
   async function upload(files: FileList | File[]) {
@@ -24,6 +26,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
       const totalBytes = selected.reduce((total, file) => total + file.size, 0);
 
       for (const file of selected) {
+        setCurrentUpload(`Uploading ${file.name} (${formatBytes(file.size)}) to the server PC...`);
         await uploadSingleFile(file, (loaded) => {
           const percent = totalBytes > 0 ? Math.round(((completedBytes + loaded) / totalBytes) * 100) : 100;
           setProgress(Math.min(100, Math.max(8, percent)));
@@ -37,6 +40,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
       notify(error instanceof Error ? error.message : "Upload failed", "error");
     } finally {
       setProgress(null);
+      setCurrentUpload(null);
       if (inputRef.current) {
         inputRef.current.value = "";
       }
@@ -63,7 +67,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
       <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={(event) => event.target.files && upload(event.target.files)} />
       <p className="text-sm font-bold uppercase tracking-[0.3em] text-sky-300">Drag and drop</p>
       <h2 className="mt-3 text-3xl font-black">Upload images, GIFs, and videos</h2>
-      <p className="mt-2 text-slate-300">PNG, JPG, JPEG, GIF, MP4, MOV, and WebM are stored locally.</p>
+      <p className="mt-2 text-slate-300">PNG, JPG, JPEG, GIF, MP4, MOV, and WebM are saved to the configured folder on the server PC.</p>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -77,6 +81,7 @@ export function UploadDropzone({ onUploaded }: { onUploaded: () => void }) {
             <div className="h-full rounded-full bg-sky-300 transition-all" style={{ width: `${progress}%` }} />
           </div>
           <div className="mt-2 text-sm font-bold text-slate-300">{progress}% uploaded</div>
+          {currentUpload && <div className="mt-1 text-sm text-slate-400">{currentUpload}</div>}
         </div>
       )}
     </div>

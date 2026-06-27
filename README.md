@@ -7,7 +7,7 @@ Qubit Companion is a local-only Next.js application for uploading media and cont
 - Next.js App Router, React, TypeScript, TailwindCSS
 - No Express, Electron, NestJS, cloud services, or external database
 - Local JSON metadata in `storage/database.json`
-- Local uploads in `storage/uploads`
+- Local uploads in a configurable folder on the Windows/server PC
 - Cached generated thumbnails in `storage/thumbnails`
 - Drag-and-drop uploads with progress
 - PNG, JPG, JPEG, GIF, MP4, MOV, and WebM support
@@ -67,12 +67,28 @@ lib/                  Storage, path, constants, API helpers
 services/             Resolume API service
 types/                TypeScript domain types
 utils/                Formatting and filename helpers
-storage/uploads/      Local user media
+storage/uploads/      Default local user media folder
 storage/thumbnails/   Generated cached thumbnails
 storage/database.json Local media metadata, created on first run
 storage/settings.json Local settings, created on first run
 scripts/              Windows startup helpers
 ```
+
+## Choosing the upload folder
+
+Open **Settings** and set **Server Upload Folder**.
+
+This folder is always on the PC running the Next.js server. If you upload from a phone/tablet on the LAN, the media is still saved on the Windows PC, not on the phone/tablet.
+
+Examples:
+
+```text
+D:\Resolume Media
+C:\Users\Public\Videos\Resolume
+storage/uploads
+```
+
+When you save settings, the app creates the folder if needed and verifies it is writable. Use **Open Folder** in the media browser to open the configured server folder.
 
 ## Resolume configuration
 
@@ -227,6 +243,7 @@ and confirm the exact effect name/id your installation expects.
 
 - The browser uploader uses `POST /api/upload/raw` to stream large files directly to disk.
 - The configured local limit is 8 GB per file.
+- Files are saved to the configured **Server Upload Folder** on the Windows PC running the app.
 - Keep the phone/tablet awake during LAN uploads.
 - Use a strong private Wi-Fi network; guest networks and weak Wi-Fi can drop long uploads.
 - Check that the Windows PC has enough free disk space in the `storage/uploads` drive.

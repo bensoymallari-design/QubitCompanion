@@ -1,8 +1,7 @@
 import { promises as fs } from "node:fs";
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
-import { resolveFromRoot } from "@/lib/paths";
-import { getMedia } from "@/lib/storage";
+import { getMedia, resolveMediaPath } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +19,7 @@ export async function GET(_: Request, context: Context) {
       return jsonError(new Error("Media file not found"), 404);
     }
 
-    const file = await fs.readFile(resolveFromRoot(media.relativePath));
+    const file = await fs.readFile(resolveMediaPath(media.relativePath));
     return new NextResponse(file, {
       headers: {
         "content-type": media.mimeType,

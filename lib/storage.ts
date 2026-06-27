@@ -1,4 +1,4 @@
-import { createWriteStream } from "node:fs";
+import { constants, createWriteStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -14,7 +14,7 @@ import {
   THUMBNAILS_DIR,
   UPLOADS_DIR
 } from "@/lib/constants";
-import { databasePath, ensureInsideStorage, resolveFromRoot, settingsPath, thumbnailsPath, uploadsPath } from "@/lib/paths";
+import { databasePath, resolveFromRoot, settingsPath, thumbnailsPath, uploadsPath } from "@/lib/paths";
 import type { MediaDatabase, MediaExtension, MediaFile, MediaKind, MediaListQuery } from "@/types/media";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/types/settings";
 import { safeFilename } from "@/utils/format";
@@ -72,11 +72,12 @@ export async function writeSettings(settings: AppSettings): Promise<AppSettings>
   const normalized: AppSettings = {
     resolumeIp: settings.resolumeIp?.trim() || DEFAULT_SETTINGS.resolumeIp,
     resolumePort: Number(settings.resolumePort) || DEFAULT_SETTINGS.resolumePort,
-    uploadFolder: settings.uploadFolder?.trim() || DEFAULT_SETTINGS.uploadFolder,
+    uploadFolder: normalizeUploadFolder(settings.uploadFolder),
     autoRefresh: Boolean(settings.autoRefresh),
     darkMode: Boolean(settings.darkMode)
   };
 
+  await ensureWritableUploadFolder(normalized.uploadFolder);
   await writeJson(settingsPath(), normalized);
   return normalized;
 }
@@ -121,9 +122,8 @@ export async function saveUpload(file: File): Promise<MediaFile> {
   const cleanName = safeFilename(file.name);
   const filename = `${id}-${cleanName}`;
   const uploadFolder = await configuredUploadFolder();
-  const relativePath = `${uploadFolder}/${filename}`;
-  const absolutePath = resolveFromRoot(relativePath);
-  ensureInsideStorage(absolutePath);
+  const relativePath = joinUploadPath(uploadFolder, filename);
+  const absolutePath = resolveMediaPath(relativePath);
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -167,10 +167,9 @@ export async function saveUploadStream(input: {
   const cleanName = safeFilename(input.filename);
   const filename = `${id}-${cleanName}`;
   const uploadFolder = await configuredUploadFolder();
-  const relativePath = `${uploadFolder}/${filename}`;
-  const absolutePath = resolveFromRoot(relativePath);
+  const relativePath = joinUploadPath(uploadFolder, filename);
+  const absolutePath = resolveMediaPath(relativePath);
   const temporaryPath = `${absolutePath}.${process.pid}.${Date.now()}.uploading`;
-  ensureInsideStorage(absolutePath);
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
 
   let written = 0;
@@ -226,12 +225,11 @@ export async function replaceUpload(id: string, file: File): Promise<MediaFile> 
   const cleanName = safeFilename(file.name);
   const filename = `${id}-${cleanName}`;
   const uploadFolder = await configuredUploadFolder();
-  const relativePath = `${uploadFolder}/${filename}`;
-  const absolutePath = resolveFromRoot(relativePath);
-  ensureInsideStorage(absolutePath);
+  const relativePath = joinUploadPath(uploadFolder, filename);
+  const absolutePath = resolveMediaPath(relativePath);
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
 
-  const previousPath = resolveFromRoot(current.relativePath);
+  const previousPath = resolveMediaPath(current.relativePath);
   await fs.writeFile(absolutePath, Buffer.from(await file.arrayBuffer()));
   if (previousPath !== absolutePath) {
     await removeIfExists(previousPath);
@@ -323,10 +321,11 @@ export async function duplicateMedia(id: string): Promise<MediaFile> {
   const nextId = randomUUID();
   const now = new Date().toISOString();
   const copiedName = safeFilename(`copy-of-${media.filename}`);
-  const uploadRelativePath = `${await configuredUploadFolder()}/${nextId}-${copiedName}`;
+  const uploadRelativePath = joinUploadPath(await configuredUploadFolder(), `${nextId}-${copiedName}`);
   const thumbRelativePath = `${THUMBNAILS_DIR}/${nextId}.svg`;
+  await fs.mkdir(path.dirname(resolveMediaPath(uploadRelativePath)), { recursive: true });
 
-  await fs.copyFile(resolveFromRoot(media.relativePath), resolveFromRoot(uploadRelativePath));
+  await fs.copyFile(resolveMediaPath(media.relativePath), resolveMediaPath(uploadRelativePath));
   await fs.copyFile(resolveFromRoot(media.thumbnailPath), resolveFromRoot(thumbRelativePath));
 
   const duplicate: MediaFile = {
@@ -349,7 +348,7 @@ export async function duplicateMedia(id: string): Promise<MediaFile> {
 export async function deleteMedia(id: string): Promise<void> {
   const database = await readDatabase();
   const media = findMediaOrThrow(database, id);
-  await removeIfExists(resolveFromRoot(media.relativePath));
+  await removeIfExists(resolveMediaPath(media.relativePath));
   await removeIfExists(resolveFromRoot(media.thumbnailPath));
   database.files = database.files.filter((file) => file.id !== id);
   await writeDatabase(database);
@@ -393,13 +392,44 @@ async function removeIfExists(filePath: string): Promise<void> {
 
 export async function configuredUploadFolder(): Promise<string> {
   const settings = await readSettings();
-  const normalized = settings.uploadFolder.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+  return normalizeUploadFolder(settings.uploadFolder);
+}
 
-  if (!normalized || normalized.startsWith("..") || path.isAbsolute(normalized) || !normalized.startsWith("storage/")) {
+export function resolveMediaPath(storedPath: string): string {
+  if (isAbsoluteServerPath(storedPath)) {
+    return storedPath;
+  }
+
+  return resolveFromRoot(storedPath);
+}
+
+export async function configuredUploadFolderPath(): Promise<string> {
+  return resolveMediaPath(await configuredUploadFolder());
+}
+
+function normalizeUploadFolder(input: string | undefined): string {
+  const trimmed = input?.trim() || DEFAULT_SETTINGS.uploadFolder;
+  const normalized = trimmed.replace(/\\/g, "/").replace(/\/+$/, "");
+
+  if (!normalized || normalized === ".") {
     return UPLOADS_DIR;
   }
 
   return normalized;
+}
+
+function joinUploadPath(folder: string, filename: string): string {
+  return `${folder.replace(/[\\/]+$/, "")}/${filename}`;
+}
+
+function isAbsoluteServerPath(value: string): boolean {
+  return path.isAbsolute(value) || /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("//");
+}
+
+async function ensureWritableUploadFolder(folder: string): Promise<void> {
+  const absoluteFolder = resolveMediaPath(folder);
+  await fs.mkdir(absoluteFolder, { recursive: true });
+  await fs.access(absoluteFolder, constants.W_OK);
 }
 
 async function writeThumbnailSvg(filePath: string, filename: string, kind: MediaKind): Promise<void> {
