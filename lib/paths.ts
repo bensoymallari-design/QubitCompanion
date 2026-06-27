@@ -1,10 +1,8 @@
 import path from "node:path";
 import { DATABASE_PATH, SETTINGS_PATH, THUMBNAILS_DIR, UPLOADS_DIR } from "@/lib/constants";
 
-export const rootPath = process.cwd();
-
 export function resolveFromRoot(relativePath: string): string {
-  return path.join(rootPath, relativePath);
+  return path.join(/*turbopackIgnore: true*/ process.cwd(), relativePath);
 }
 
 export function uploadsPath(): string {

@@ -87,7 +87,7 @@ export class ResolumeService {
       throw new Error("Media file not found");
     }
 
-    const absolutePath = path.resolve(process.cwd(), media.relativePath);
+    const absolutePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), media.relativePath);
     const endpoint = `/composition/layers/${request.layer}/clips/${request.clip}`;
     const bodies = [
       { file: { path: absolutePath }, name: media.filename },
