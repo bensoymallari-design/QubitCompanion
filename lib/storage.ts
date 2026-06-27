@@ -1,6 +1,9 @@
+import { createWriteStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { Transform, type Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import {
   DATABASE_PATH,
   MEDIA_KIND_BY_EXTENSION,
@@ -88,18 +91,23 @@ export function kindForExtension(extension: MediaExtension): MediaKind {
 }
 
 export function assertSupportedFile(file: File): MediaExtension {
-  const extension = extensionForName(file.name);
+  return assertSupportedUpload(file.name, file.type, file.size);
+}
+
+export function assertSupportedUpload(filename: string, mimeType: string | undefined, size: number): MediaExtension {
+  const extension = extensionForName(filename);
+  const normalizedMimeType = mimeType?.split(";")[0]?.trim().toLowerCase();
 
   if (!extension) {
     throw new Error(`Unsupported file type. Supported formats: ${SUPPORTED_EXTENSIONS.join(", ")}`);
   }
 
-  if (file.type && !SUPPORTED_MIME_TYPES.has(file.type)) {
-    throw new Error(`Unsupported MIME type: ${file.type}`);
+  if (normalizedMimeType && normalizedMimeType !== "application/octet-stream" && !SUPPORTED_MIME_TYPES.has(normalizedMimeType)) {
+    throw new Error(`Unsupported MIME type: ${mimeType}`);
   }
 
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error("File is too large for this local upload limit");
+  if (size > MAX_UPLOAD_BYTES) {
+    throw new Error(`File is too large. Max upload size is ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024 / 1024)} GB`);
   }
 
   return extension;
@@ -132,6 +140,70 @@ export async function saveUpload(file: File): Promise<MediaFile> {
     mimeType: file.type || mimeForExtension(extension),
     kind: kindForExtension(extension),
     size: file.size,
+    relativePath,
+    thumbnailPath,
+    favorite: false,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const database = await readDatabase();
+  database.files.unshift(media);
+  await writeDatabase(database);
+
+  return media;
+}
+
+export async function saveUploadStream(input: {
+  filename: string;
+  mimeType?: string;
+  size: number;
+  stream: Readable;
+}): Promise<MediaFile> {
+  await ensureStorage();
+  const extension = assertSupportedUpload(input.filename, input.mimeType, input.size);
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  const cleanName = safeFilename(input.filename);
+  const filename = `${id}-${cleanName}`;
+  const uploadFolder = await configuredUploadFolder();
+  const relativePath = `${uploadFolder}/${filename}`;
+  const absolutePath = resolveFromRoot(relativePath);
+  const temporaryPath = `${absolutePath}.${process.pid}.${Date.now()}.uploading`;
+  ensureInsideStorage(absolutePath);
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+
+  let written = 0;
+  const counter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      written += chunk.length;
+      if (written > MAX_UPLOAD_BYTES) {
+        callback(new Error(`File is too large. Max upload size is ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024 / 1024)} GB`));
+        return;
+      }
+      callback(null, chunk);
+    }
+  });
+
+  try {
+    await pipeline(input.stream, counter, createWriteStream(temporaryPath));
+    await fs.rename(temporaryPath, absolutePath);
+  } catch (error) {
+    await removeIfExists(temporaryPath);
+    throw error;
+  }
+
+  const thumbnailPath = `${THUMBNAILS_DIR}/${id}.svg`;
+  await writeThumbnailSvg(resolveFromRoot(thumbnailPath), cleanName, kindForExtension(extension));
+
+  const media: MediaFile = {
+    id,
+    filename: cleanName,
+    originalName: input.filename,
+    extension,
+    mimeType: input.mimeType || mimeForExtension(extension),
+    kind: kindForExtension(extension),
+    size: written || input.size,
     relativePath,
     thumbnailPath,
     favorite: false,

@@ -223,6 +223,14 @@ and confirm the exact effect name/id your installation expects.
 
 ## Troubleshooting
 
+### Large video upload does not finish
+
+- The browser uploader uses `POST /api/upload/raw` to stream large files directly to disk.
+- The configured local limit is 8 GB per file.
+- Keep the phone/tablet awake during LAN uploads.
+- Use a strong private Wi-Fi network; guest networks and weak Wi-Fi can drop long uploads.
+- Check that the Windows PC has enough free disk space in the `storage/uploads` drive.
+
 ### Resolume shows disconnected
 
 - Confirm Resolume Arena is open.
