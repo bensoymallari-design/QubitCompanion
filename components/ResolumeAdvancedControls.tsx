@@ -25,6 +25,14 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
   const [removeIndex, setRemoveIndex] = useState("1");
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [effectManagerOpen, setEffectManagerOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<ResolumeParameter["group"], boolean>>({
+    transform: true,
+    effect: false,
+    audio: false,
+    transport: false,
+    other: false
+  });
   const { notify } = useToast();
 
   const loadParameters = useCallback(async () => {
@@ -148,6 +156,10 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
     }
   }
 
+  function toggleGroup(group: ResolumeParameter["group"]) {
+    setOpenGroups((current) => ({ ...current, [group]: !current[group] }));
+  }
+
   return (
     <section className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -169,38 +181,56 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-        <input
-          list="resolume-effects"
-          value={effectInput}
-          onChange={(event) => setEffectInput(event.target.value)}
-          placeholder="Type effect name or id, e.g. Transform, Blur, Hue Rotate"
-          className="min-h-12 rounded-2xl bg-slate-950 px-4 outline-none focus:ring-2 focus:ring-sky-300"
-        />
-        <datalist id="resolume-effects">
-          {effects.map((effect) => (
-            <option key={effect.id} value={effect.id}>
-              {effect.name}
-            </option>
-          ))}
-        </datalist>
-        <button type="button" onClick={addEffect} className="min-h-12 rounded-2xl bg-emerald-300 px-5 font-black text-slate-950">
-          Add Effect
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03]">
+        <button
+          type="button"
+          onClick={() => setEffectManagerOpen((value) => !value)}
+          className="flex min-h-14 w-full items-center justify-between gap-3 px-4 text-left"
+        >
+          <span>
+            <span className="block text-sm font-black text-slate-100">Effect Manager</span>
+            <span className="block text-xs text-slate-400">Add or remove effect slots when your Resolume API supports it</span>
+          </span>
+          <span className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black">{effectManagerOpen ? "Hide" : "Show"}</span>
         </button>
-      </div>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
-        <input
-          value={removeIndex}
-          onChange={(event) => setRemoveIndex(event.target.value)}
-          type="number"
-          min="1"
-          placeholder="Effect slot number"
-          className="min-h-12 rounded-2xl bg-slate-950 px-4 outline-none focus:ring-2 focus:ring-sky-300"
-        />
-        <button type="button" onClick={removeEffect} className="min-h-12 rounded-2xl bg-rose-400/20 px-5 font-black text-rose-100">
-          Remove Effect Slot
-        </button>
+        {effectManagerOpen && (
+          <div className="space-y-3 border-t border-white/10 p-4">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+              <input
+                list="resolume-effects"
+                value={effectInput}
+                onChange={(event) => setEffectInput(event.target.value)}
+                placeholder="Type effect name or id, e.g. Transform, Blur, Hue Rotate"
+                className="min-h-12 rounded-2xl bg-slate-950 px-4 outline-none focus:ring-2 focus:ring-sky-300"
+              />
+              <datalist id="resolume-effects">
+                {effects.map((effect) => (
+                  <option key={effect.id} value={effect.id}>
+                    {effect.name}
+                  </option>
+                ))}
+              </datalist>
+              <button type="button" onClick={addEffect} className="min-h-12 rounded-2xl bg-emerald-300 px-5 font-black text-slate-950">
+                Add Effect
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+              <input
+                value={removeIndex}
+                onChange={(event) => setRemoveIndex(event.target.value)}
+                type="number"
+                min="1"
+                placeholder="Effect slot number"
+                className="min-h-12 rounded-2xl bg-slate-950 px-4 outline-none focus:ring-2 focus:ring-sky-300"
+              />
+              <button type="button" onClick={removeEffect} className="min-h-12 rounded-2xl bg-rose-400/20 px-5 font-black text-rose-100">
+                Remove Effect Slot
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -214,16 +244,32 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
           No editable parameters were found for this target. Try another scope, or confirm Resolume REST API is enabled.
         </p>
       ) : (
-        <div className="mt-5 space-y-5">
+        <div className="mt-5 space-y-3">
           {(Object.keys(GROUP_LABELS) as ResolumeParameter["group"][]).map((group) =>
             grouped[group].length > 0 ? (
-              <div key={group}>
-                <h4 className="text-sm font-black uppercase tracking-[0.2em] text-slate-400">{GROUP_LABELS[group]}</h4>
-                <div className="mt-3 grid gap-3">
-                  {grouped[group].slice(0, 24).map((parameter) => (
-                    <ParameterControl key={parameter.id} parameter={parameter} disabled={savingId === parameter.id} onChange={(value) => updateParameter(parameter, value)} />
-                  ))}
-                </div>
+              <div key={group} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  className="flex min-h-16 w-full items-center justify-between gap-4 px-4 text-left transition hover:bg-white/5"
+                >
+                  <span>
+                    <span className="block text-base font-black text-slate-100">{GROUP_LABELS[group]}</span>
+                    <span className="block text-xs text-slate-400">{grouped[group].length} controls</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="rounded-xl bg-slate-950 px-3 py-2 font-mono text-xs text-slate-300">{openGroups[group] ? "Open" : "Closed"}</span>
+                    <span className="text-lg font-black">{openGroups[group] ? "-" : "+"}</span>
+                  </span>
+                </button>
+                {openGroups[group] && (
+                  <div className="grid gap-3 border-t border-white/10 p-3 md:grid-cols-2">
+                    {grouped[group].slice(0, 24).map((parameter) => (
+                      <ParameterControl key={parameter.id} parameter={parameter} disabled={savingId === parameter.id} onChange={(value) => updateParameter(parameter, value)} />
+                    ))}
+                    {grouped[group].length > 24 && <div className="rounded-2xl bg-white/5 p-4 text-sm text-slate-300">Showing first 24 controls in this section.</div>}
+                  </div>
+                )}
               </div>
             ) : null
           )}
