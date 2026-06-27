@@ -42,7 +42,7 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
       const response = await fetch("/api/resolume/load", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fileId: file.id, layer, clip })
+        body: JSON.stringify({ fileId: file.id, layer, clip, trigger: triggerAfterLoad })
       });
       const data = (await response.json()) as { error?: string; message?: string };
 
@@ -50,11 +50,7 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
         throw new Error(data.error ?? "Resolume load failed");
       }
 
-      if (triggerAfterLoad) {
-        await postResolumeAction("/api/resolume/trigger", { layer, clip });
-      }
-
-      notify(triggerAfterLoad ? "Loaded and triggered media in Resolume" : data.message ?? "Loaded media into Resolume", "success");
+      notify(data.message ?? (triggerAfterLoad ? "Loaded and triggered media in Resolume" : "Loaded media into Resolume"), "success");
       onClose();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Resolume load failed", "error");

@@ -103,6 +103,7 @@ export class ResolumeService {
     const absolutePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), media.relativePath);
     const fileUri = pathToFileURL(absolutePath).href;
     const endpoint = `/composition/layers/${request.layer}/clips/${request.clip}`;
+    let loaded = false;
 
     for (const action of ["openfile", "open"]) {
       try {
@@ -111,7 +112,8 @@ export class ResolumeService {
           headers: { "content-type": "text/plain" },
           body: fileUri
         });
-        return { message: `Loaded ${media.filename} into layer ${request.layer}, clip ${request.clip}` };
+        loaded = true;
+        break;
       } catch (error) {
         if (action === "open") {
           throw error;
@@ -119,12 +121,56 @@ export class ResolumeService {
       }
     }
 
-    throw new Error("Resolume did not accept the media file path");
+    if (!loaded) {
+      throw new Error("Resolume did not accept the media file path");
+    }
+
+    if (request.trigger) {
+      await delay(400);
+      await this.triggerClip({ layer: request.layer, clip: request.clip });
+      return { message: `Loaded and triggered ${media.filename} in layer ${request.layer}, clip ${request.clip}` };
+    }
+
+    return { message: `Loaded ${media.filename} into layer ${request.layer}, clip ${request.clip}` };
   }
 
   async triggerClip(target: ResolumeClipTarget): Promise<{ message: string }> {
-    await this.request(`/composition/layers/${target.layer}/clips/${target.clip}/connect`, { method: "POST" });
-    return { message: `Triggered layer ${target.layer}, clip ${target.clip}` };
+    const endpoint = `/composition/layers/${target.layer}/clips/${target.clip}/connect`;
+    const pressReleasePairs: Array<{ press: RequestInit; release: RequestInit }> = [
+      {
+        press: { method: "POST", headers: { "content-type": "text/plain" }, body: "true" },
+        release: { method: "POST", headers: { "content-type": "text/plain" }, body: "false" }
+      },
+      {
+        press: { method: "POST", body: JSON.stringify(true) },
+        release: { method: "POST", body: JSON.stringify(false) }
+      },
+      {
+        press: { method: "POST", body: JSON.stringify({ value: true }) },
+        release: { method: "POST", body: JSON.stringify({ value: false }) }
+      }
+    ];
+    let lastError: unknown;
+
+    for (const pair of pressReleasePairs) {
+      try {
+        await this.request(endpoint, pair.press);
+        await delay(80);
+        await this.request(endpoint, pair.release).catch(() => undefined);
+        return { message: `Triggered layer ${target.layer}, clip ${target.clip}` };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    try {
+      await this.request(endpoint, { method: "POST" });
+      return { message: `Triggered layer ${target.layer}, clip ${target.clip}` };
+    } catch (error) {
+      lastError = error;
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Could not trigger Resolume clip");
   }
 
   async stopClip(target: ResolumeClipTarget): Promise<{ message: string }> {
@@ -586,6 +632,10 @@ function extractEffects(data: unknown): ResolumeEffect[] {
 
 function humanize(value: string): string {
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function stringValue(value: unknown): string | undefined {
