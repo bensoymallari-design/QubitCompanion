@@ -20,7 +20,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const notify = useCallback((message: string, tone: ToastTone = "info") => {
-    const id = crypto.randomUUID();
+    const id = createToastId();
     setToasts((current) => [...current, { id, message, tone }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -50,6 +50,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       </div>
     </ToastContext.Provider>
   );
+}
+
+function createToastId(): string {
+  if (globalThis.crypto && "randomUUID" in globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function useToast(): ToastContextValue {
