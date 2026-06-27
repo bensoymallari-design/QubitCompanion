@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       filename,
       mimeType,
       size,
-      stream: Readable.fromWeb(request.body)
+      stream: Readable.fromWeb(request.body as Parameters<typeof Readable.fromWeb>[0])
     });
 
     return jsonOk({ files: [file] }, { status: 201 });
