@@ -23,6 +23,8 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
   const [effects, setEffects] = useState<ResolumeEffect[]>([]);
   const [effectInput, setEffectInput] = useState("");
   const [removeIndex, setRemoveIndex] = useState("1");
+  const [compositionWidth, setCompositionWidth] = useState("1920");
+  const [compositionHeight, setCompositionHeight] = useState("1080");
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [effectManagerOpen, setEffectManagerOpen] = useState(false);
@@ -160,6 +162,50 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
     setOpenGroups((current) => ({ ...current, [group]: !current[group] }));
   }
 
+  async function applyTransformPreset(preset: "fit" | "center" | "scale100") {
+    const width = Number(compositionWidth);
+    const height = Number(compositionHeight);
+    const transformParameters = grouped.transform;
+    const updates: Array<{ parameter: ResolumeParameter; value: number }> = [];
+
+    for (const parameter of transformParameters) {
+      const key = `${parameter.path} ${parameter.name}`.toLowerCase();
+
+      if (preset === "fit") {
+        if (Number.isFinite(width) && /\b(width|size x|resolution x)\b/.test(key)) {
+          updates.push({ parameter, value: width });
+        } else if (Number.isFinite(height) && /\b(height|size y|resolution y)\b/.test(key)) {
+          updates.push({ parameter, value: height });
+        } else if (/\b(scale|scale x|scale y)\b/.test(key)) {
+          updates.push({ parameter, value: scaleOneValue(parameter) });
+        }
+      }
+
+      if (preset === "center") {
+        if (Number.isFinite(width) && /(position x|pos x|translate x|anchor x)/.test(key)) {
+          updates.push({ parameter, value: width / 2 });
+        } else if (Number.isFinite(height) && /(position y|pos y|translate y|anchor y)/.test(key)) {
+          updates.push({ parameter, value: height / 2 });
+        }
+      }
+
+      if (preset === "scale100" && /\b(scale|scale x|scale y)\b/.test(key)) {
+        updates.push({ parameter, value: scaleOneValue(parameter) });
+      }
+    }
+
+    if (updates.length === 0) {
+      notify("No matching transform parameters were found for this preset.", "error");
+      return;
+    }
+
+    for (const update of updates) {
+      await updateParameter(update.parameter, update.value);
+    }
+
+    notify(`Updated ${updates.length} transform control${updates.length === 1 ? "" : "s"}`, "success");
+  }
+
   return (
     <section className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -233,6 +279,47 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
         )}
       </div>
 
+      <div className="mt-4 rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="grid flex-1 gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Composition Width</span>
+              <input
+                type="number"
+                min="1"
+                value={compositionWidth}
+                onChange={(event) => setCompositionWidth(event.target.value)}
+                className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Composition Height</span>
+              <input
+                type="number"
+                min="1"
+                value={compositionHeight}
+                onChange={(event) => setCompositionHeight(event.target.value)}
+                className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
+              />
+            </label>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:w-[28rem]">
+            <button type="button" onClick={() => applyTransformPreset("fit")} className="min-h-12 rounded-2xl bg-sky-300 px-4 font-black text-slate-950">
+              Fit Size
+            </button>
+            <button type="button" onClick={() => applyTransformPreset("center")} className="min-h-12 rounded-2xl bg-white/10 px-4 font-black">
+              Center
+            </button>
+            <button type="button" onClick={() => applyTransformPreset("scale100")} className="min-h-12 rounded-2xl bg-white/10 px-4 font-black">
+              Scale 100%
+            </button>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-slate-300">
+          These buttons update matching transform parameters when Resolume exposes them for the selected clip/layer.
+        </p>
+      </div>
+
       {loading ? (
         <div className="mt-5 grid gap-3">
           {Array.from({ length: 5 }).map((_, index) => (
@@ -293,6 +380,21 @@ function ParameterControl({
   const isNumeric = Number.isFinite(numericValue);
   const min = parameter.min ?? 0;
   const max = parameter.max ?? (isNumeric && Math.abs(numericValue) > 1 ? Math.max(1, Math.ceil(Math.abs(numericValue) * 2)) : 1);
+  const [draftValue, setDraftValue] = useState(isNumeric ? String(numericValue) : "");
+
+  useEffect(() => {
+    if (isNumeric) {
+      setDraftValue(String(numericValue));
+    }
+  }, [isNumeric, numericValue]);
+
+  function commitNumber() {
+    const next = Number(draftValue);
+
+    if (Number.isFinite(next)) {
+      onChange(next);
+    }
+  }
 
   return (
     <label className="rounded-2xl bg-white/5 p-4">
@@ -312,16 +414,41 @@ function ParameterControl({
           {value ? "On" : "Off"}
         </button>
       ) : isNumeric ? (
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={(max - min) / 200 || 0.01}
-          value={numericValue}
-          disabled={disabled}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="mt-4 w-full accent-sky-300"
-        />
+        <div className="mt-4 grid gap-3">
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={(max - min) / 200 || 0.01}
+            value={numericValue}
+            disabled={disabled}
+            onChange={(event) => {
+              setDraftValue(event.target.value);
+              onChange(Number(event.target.value));
+            }}
+            className="w-full accent-sky-300"
+          />
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <input
+              type="number"
+              value={draftValue}
+              disabled={disabled}
+              step={(max - min) / 200 || 0.01}
+              onChange={(event) => setDraftValue(event.target.value)}
+              onBlur={commitNumber}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  commitNumber();
+                  (event.currentTarget as HTMLInputElement).blur();
+                }
+              }}
+              className="min-h-12 rounded-xl bg-slate-950 px-3 font-mono text-sm"
+            />
+            <button type="button" disabled={disabled} onClick={commitNumber} className="min-h-12 rounded-xl bg-sky-300 px-4 text-sm font-black text-slate-950 disabled:opacity-40">
+              Set
+            </button>
+          </div>
+        </div>
       ) : (
         <input
           value={String(value ?? "")}
@@ -332,4 +459,12 @@ function ParameterControl({
       )}
     </label>
   );
+}
+
+function scaleOneValue(parameter: ResolumeParameter): number {
+  if (typeof parameter.max === "number" && parameter.max > 2) {
+    return 100;
+  }
+
+  return 1;
 }
