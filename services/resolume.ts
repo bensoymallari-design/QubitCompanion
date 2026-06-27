@@ -1,6 +1,5 @@
-import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { getMedia, readSettings } from "@/lib/storage";
+import { getMedia, readSettings, resolveMediaPath } from "@/lib/storage";
 import type {
   ResolumeClip,
   ResolumeClipTarget,
@@ -100,7 +99,7 @@ export class ResolumeService {
       throw new Error("Media file not found");
     }
 
-    const absolutePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), media.relativePath);
+    const absolutePath = resolveMediaPath(media.relativePath);
     const fileUri = pathToFileURL(absolutePath).href;
     const endpoint = `/composition/layers/${request.layer}/clips/${request.clip}`;
     let loaded = false;
@@ -242,7 +241,7 @@ export class ResolumeService {
     }
 
     const composition = (await this.composition()) as Record<string, unknown>;
-    const absolutePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), media.relativePath).toLowerCase();
+    const absolutePath = resolveMediaPath(media.relativePath).toLowerCase();
     const fileUri = pathToFileURL(absolutePath).href.toLowerCase();
     const identifiers = [media.id, media.filename, media.originalName, media.relativePath, absolutePath, fileUri].map((value) => value.toLowerCase());
     const layers = extractArray(composition.layers);

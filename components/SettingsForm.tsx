@@ -88,9 +88,12 @@ export function SettingsForm() {
             />
           </label>
           <label className="block md:col-span-2">
-            <span className="text-sm font-bold uppercase tracking-[0.2em] text-slate-400">Upload Folder</span>
+            <span className="text-sm font-bold uppercase tracking-[0.2em] text-slate-400">Server Upload Folder</span>
             <input value={settings.uploadFolder} onChange={(event) => update("uploadFolder", event.target.value)} className="mt-2 min-h-16 w-full rounded-2xl bg-slate-950 px-5 text-xl" />
-            <span className="mt-2 block text-sm text-slate-400">Keep this under the project folder for safest local operation. Default: storage/uploads.</span>
+            <span className="mt-2 block text-sm text-slate-400">
+              This is a folder on the Windows PC running this app. Phones/tablets upload into this folder over LAN. Examples:
+              `D:\Resolume Media`, `C:\Users\Public\Videos\Resolume`, or `storage/uploads`.
+            </span>
           </label>
         </div>
 
@@ -128,7 +131,7 @@ export function SettingsForm() {
           </div>
           <div>
             <dt className="font-black text-white">Storage</dt>
-            <dd>storage/uploads and storage/database.json</dd>
+            <dd>Uploads save to your configured server folder. Metadata stays in storage/database.json.</dd>
           </div>
         </dl>
       </aside>

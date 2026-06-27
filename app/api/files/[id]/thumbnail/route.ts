@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api";
 import { resolveFromRoot } from "@/lib/paths";
-import { getMedia } from "@/lib/storage";
+import { getMedia, resolveMediaPath } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function GET(_: Request, context: Context) {
     }
 
     if (media.kind === "image" || media.kind === "gif") {
-      const image = await fs.readFile(resolveFromRoot(media.relativePath));
+      const image = await fs.readFile(resolveMediaPath(media.relativePath));
       return new NextResponse(image, {
         headers: {
           "content-type": media.mimeType,
