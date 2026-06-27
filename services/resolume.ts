@@ -128,8 +128,44 @@ export class ResolumeService {
   }
 
   async stopClip(target: ResolumeClipTarget): Promise<{ message: string }> {
-    await this.request(`/composition/layers/${target.layer}/clips/${target.clip}/disconnect`, { method: "POST" });
-    return { message: `Stopped layer ${target.layer}, clip ${target.clip}` };
+    const endpoint = `/composition/layers/${target.layer}/clips/${target.clip}/connect`;
+    const payloads: RequestInit[] = [
+      { method: "POST", headers: { "content-type": "text/plain" }, body: "false" },
+      { method: "POST", body: JSON.stringify(false) },
+      { method: "POST", body: JSON.stringify({ value: false }) }
+    ];
+    let lastError: unknown;
+
+    for (const payload of payloads) {
+      try {
+        await this.request(endpoint, payload);
+        return { message: `Stopped layer ${target.layer}, clip ${target.clip}` };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    try {
+      const connectedParameter = (await this.parameters({ scope: "clip", layer: target.layer, clip: target.clip })).find((parameter) =>
+        `${parameter.path} ${parameter.name}`.toLowerCase().includes("connected")
+      );
+
+      if (connectedParameter) {
+        await this.updateParameter(connectedParameter.id, false);
+        return { message: `Stopped layer ${target.layer}, clip ${target.clip}` };
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    try {
+      await this.request(`/composition/layers/${target.layer}/clear`, { method: "POST" });
+      return { message: `Stopped layer ${target.layer}` };
+    } catch (error) {
+      lastError = error;
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Could not stop Resolume clip");
   }
 
   async clearLayer(layer: number): Promise<{ message: string }> {
