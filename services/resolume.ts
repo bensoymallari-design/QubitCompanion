@@ -1,3 +1,4 @@
+import { promises as fs } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { getMedia, readSettings, resolveMediaPath } from "@/lib/storage";
 import type {
@@ -100,28 +101,38 @@ export class ResolumeService {
     }
 
     const absolutePath = resolveMediaPath(media.relativePath);
-    const fileUri = pathToFileURL(absolutePath).href;
+    await fs.access(absolutePath);
+    const fileUris = resolumeFileUriVariants(absolutePath);
     const endpoint = `/composition/layers/${request.layer}/clips/${request.clip}`;
     let loaded = false;
+    let lastError: unknown;
 
     for (const action of ["openfile", "open"]) {
-      try {
-        await this.request(`${endpoint}/${action}`, {
-          method: "POST",
-          headers: { "content-type": "text/plain" },
-          body: fileUri
-        });
-        loaded = true;
-        break;
-      } catch (error) {
-        if (action === "open") {
-          throw error;
+      for (const fileUri of fileUris) {
+        try {
+          await this.request(`${endpoint}/${action}`, {
+            method: "POST",
+            headers: { "content-type": "text/plain" },
+            body: fileUri
+          });
+          loaded = true;
+          break;
+        } catch (error) {
+          lastError = error;
         }
+      }
+
+      if (loaded) {
+        break;
       }
     }
 
     if (!loaded) {
-      throw new Error("Resolume did not accept the media file path");
+      const detail = lastError instanceof Error ? lastError.message : "unknown error";
+      throw new Error(
+        `Resolume could not open this file from disk. The file exists at "${absolutePath}", but Resolume rejected it. ` +
+          `If this is a WebM from a phone, its codec may not be supported by Resolume; try converting it to H.264 MP4 or test by dragging the file directly into Resolume. Last API error: ${detail}`
+      );
     }
 
     if (request.trigger) {
@@ -635,6 +646,24 @@ function humanize(value: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolumeFileUriVariants(absolutePath: string): string[] {
+  const normalized = absolutePath.replace(/\\/g, "/");
+  const encoded = pathToFileURL(absolutePath).href;
+  const variants = new Set<string>([encoded]);
+
+  if (/^[a-zA-Z]:\//.test(normalized)) {
+    variants.add(`file:///${normalized}`);
+    variants.add(`file://${normalized}`);
+  } else if (normalized.startsWith("//")) {
+    variants.add(`file:${normalized}`);
+  } else {
+    variants.add(`file://${normalized}`);
+  }
+
+  variants.add(decodeURI(encoded));
+  return Array.from(variants);
 }
 
 function stringValue(value: unknown): string | undefined {
