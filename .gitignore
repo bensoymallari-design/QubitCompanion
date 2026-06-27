@@ -1,0 +1,15 @@
+.next/
+node_modules/
+dist/
+out/
+*.log
+*.tsbuildinfo
+
+# Local media is user data and should not be committed.
+storage/uploads/*
+storage/thumbnails/*
+storage/database.json
+storage/settings.json
+
+!storage/uploads/.gitkeep
+!storage/thumbnails/.gitkeep
