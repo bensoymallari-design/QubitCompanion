@@ -1,4 +1,5 @@
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { getMedia, readSettings } from "@/lib/storage";
 import type { ResolumeClip, ResolumeClipTarget, ResolumeLayer, ResolumeLoadRequest, ResolumeStatus } from "@/types/resolume";
 
@@ -46,10 +47,11 @@ export class ResolumeService {
     return layers.map((layer, index) => {
       const value = layer as Record<string, unknown>;
       const clips = extractArray(value.clips);
+      const name = stringValue(value.name);
 
       return {
         id: stringValue(value.id) ?? index + 1,
-        name: stringValue(value.name) ?? `Layer ${index + 1}`,
+        name: name ? `Layer ${index + 1} - ${name}` : `Layer ${index + 1}`,
         clipCount: clips.length
       };
     });
@@ -68,9 +70,10 @@ export class ResolumeService {
 
       extractArray((layer as Record<string, unknown>).clips).forEach((clip, clipIndex) => {
         const value = clip as Record<string, unknown>;
+        const name = stringValue(value.name);
         clips.push({
           id: stringValue(value.id) ?? clipIndex + 1,
-          name: stringValue(value.name) ?? `Clip ${clipIndex + 1}`,
+          name: name ? `Clip ${clipIndex + 1} - ${name}` : `Clip ${clipIndex + 1}`,
           layerId: layerNumber,
           connected: Boolean(value.connected)
         });
@@ -88,29 +91,25 @@ export class ResolumeService {
     }
 
     const absolutePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), media.relativePath);
+    const fileUri = pathToFileURL(absolutePath).href;
     const endpoint = `/composition/layers/${request.layer}/clips/${request.clip}`;
-    const bodies = [
-      { file: { path: absolutePath }, name: media.filename },
-      { video: { fileinfo: { path: absolutePath } }, name: media.filename },
-      { audio: { fileinfo: { path: absolutePath } }, name: media.filename },
-      { path: absolutePath, name: media.filename }
-    ];
 
-    for (const body of bodies) {
+    for (const action of ["openfile", "open"]) {
       try {
-        await this.request(endpoint, { method: "PUT", body: JSON.stringify(body) });
+        await this.request(`${endpoint}/${action}`, {
+          method: "POST",
+          headers: { "content-type": "text/plain" },
+          body: fileUri
+        });
         return { message: `Loaded ${media.filename} into layer ${request.layer}, clip ${request.clip}` };
-      } catch {
-        // Resolume versions have differed in their clip media payload shape; try the next local variant.
+      } catch (error) {
+        if (action === "open") {
+          throw error;
+        }
       }
     }
 
-    await this.request(`${endpoint}/open`, {
-      method: "POST",
-      body: JSON.stringify({ path: absolutePath })
-    });
-
-    return { message: `Loaded ${media.filename} into layer ${request.layer}, clip ${request.clip}` };
+    throw new Error("Resolume did not accept the media file path");
   }
 
   async triggerClip(target: ResolumeClipTarget): Promise<{ message: string }> {
@@ -149,7 +148,13 @@ export class ResolumeService {
       }
 
       const text = await response.text();
-      return (text ? JSON.parse(text) : {}) as T;
+      const contentType = response.headers.get("content-type") ?? "";
+
+      if (!text) {
+        return {} as T;
+      }
+
+      return (contentType.includes("json") ? JSON.parse(text) : text) as T;
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         throw new Error("Resolume API request timed out");
