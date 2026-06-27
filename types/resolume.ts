@@ -27,6 +27,7 @@ export interface ResolumeLoadRequest {
   fileId: string;
   layer: number;
   clip: number;
+  trigger?: boolean;
 }
 
 export interface ResolumeClipTarget {
