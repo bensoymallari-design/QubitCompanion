@@ -11,6 +11,7 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
   const [layer, setLayer] = useState(1);
   const [clip, setClip] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [triggerAfterLoad, setTriggerAfterLoad] = useState(true);
   const { notify } = useToast();
 
   useEffect(() => {
@@ -30,6 +31,10 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
     loadTargets();
   }, []);
 
+  useEffect(() => {
+    setClip(1);
+  }, [layer]);
+
   async function send() {
     setLoading(true);
     try {
@@ -44,7 +49,11 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
         throw new Error(data.error ?? "Resolume load failed");
       }
 
-      notify(data.message ?? "Loaded media into Resolume", "success");
+      if (triggerAfterLoad) {
+        await postResolumeAction("/api/resolume/trigger", { layer, clip });
+      }
+
+      notify(triggerAfterLoad ? "Loaded and triggered media in Resolume" : data.message ?? "Loaded media into Resolume", "success");
       onClose();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Resolume load failed", "error");
@@ -103,15 +112,24 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
           </label>
         </div>
 
+        <label className="mt-5 flex min-h-14 items-center justify-between rounded-2xl bg-white/5 px-5 text-base font-bold">
+          Trigger clip after loading
+          <input type="checkbox" checked={triggerAfterLoad} onChange={(event) => setTriggerAfterLoad(event.target.checked)} className="h-6 w-6" />
+        </label>
+
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <button type="button" disabled={loading} onClick={send} className="min-h-16 rounded-2xl bg-emerald-300 px-5 text-lg font-black text-slate-950 disabled:opacity-50">
-            {loading ? "Loading..." : "Load"}
+            {loading ? "Loading..." : triggerAfterLoad ? "Load & Trigger" : "Load"}
           </button>
           <button
             type="button"
             onClick={async () => {
-              await fetch("/api/resolume/trigger", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ layer, clip }) });
-              notify("Clip triggered", "success");
+              try {
+                await postResolumeAction("/api/resolume/trigger", { layer, clip });
+                notify("Clip triggered", "success");
+              } catch (error) {
+                notify(error instanceof Error ? error.message : "Trigger failed", "error");
+              }
             }}
             className="min-h-16 rounded-2xl bg-white/10 px-5 text-lg font-black"
           >
@@ -120,8 +138,12 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
           <button
             type="button"
             onClick={async () => {
-              await fetch("/api/resolume/stop", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ layer, clip }) });
-              notify("Clip stopped", "info");
+              try {
+                await postResolumeAction("/api/resolume/stop", { layer, clip });
+                notify("Clip stopped", "info");
+              } catch (error) {
+                notify(error instanceof Error ? error.message : "Stop failed", "error");
+              }
             }}
             className="min-h-16 rounded-2xl bg-white/10 px-5 text-lg font-black"
           >
@@ -131,4 +153,17 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
       </div>
     </div>
   );
+}
+
+async function postResolumeAction(url: string, body: { layer: number; clip: number }) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = (await response.json()) as { error?: string };
+
+  if (!response.ok) {
+    throw new Error(data.error ?? "Resolume action failed");
+  }
 }
