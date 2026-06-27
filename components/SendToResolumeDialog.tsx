@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ResolumeAdvancedControls } from "@/components/ResolumeAdvancedControls";
 import { useToast } from "@/components/ToastProvider";
 import type { MediaFile } from "@/types/media";
 import type { ResolumeClip, ResolumeLayer } from "@/types/resolume";
@@ -64,7 +65,7 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur">
-      <div className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-slate-900 p-6 shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-white/10 bg-slate-900 p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.3em] text-sky-300">Send to Resolume</p>
@@ -150,6 +151,8 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
             Stop
           </button>
         </div>
+
+        <ResolumeAdvancedControls layer={layer} clip={clip} />
       </div>
     </div>
   );

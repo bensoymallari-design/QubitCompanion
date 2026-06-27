@@ -1,7 +1,17 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { getMedia, readSettings } from "@/lib/storage";
-import type { ResolumeClip, ResolumeClipTarget, ResolumeLayer, ResolumeLoadRequest, ResolumeStatus } from "@/types/resolume";
+import type {
+  ResolumeClip,
+  ResolumeClipTarget,
+  ResolumeControlTarget,
+  ResolumeEffect,
+  ResolumeLayer,
+  ResolumeLoadRequest,
+  ResolumeParameter,
+  ResolumeParameterValue,
+  ResolumeStatus
+} from "@/types/resolume";
 
 const REQUEST_TIMEOUT_MS = 5000;
 
@@ -127,6 +137,90 @@ export class ResolumeService {
     return { message: `Cleared layer ${layer}` };
   }
 
+  async parameters(target: ResolumeControlTarget): Promise<ResolumeParameter[]> {
+    const composition = (await this.composition()) as Record<string, unknown>;
+    const node = targetNode(composition, target);
+
+    if (!node) {
+      throw new Error("Resolume target was not found in the composition");
+    }
+
+    return extractParameters(node).sort((a, b) => groupRank(a.group) - groupRank(b.group) || a.name.localeCompare(b.name));
+  }
+
+  async updateParameter(id: string, value: ResolumeParameterValue): Promise<{ message: string }> {
+    if (!id) {
+      throw new Error("Parameter id is required");
+    }
+
+    const payloads = [{ value }, value];
+    let lastError: unknown;
+
+    for (const payload of payloads) {
+      try {
+        await this.request(`/parameter/by-id/${encodeURIComponent(id)}`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        });
+        return { message: "Resolume parameter updated" };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Resolume parameter update failed");
+  }
+
+  async effects(): Promise<ResolumeEffect[]> {
+    const candidates = ["/effects", "/composition/effects"];
+    let lastError: unknown;
+
+    for (const candidate of candidates) {
+      try {
+        const data = await this.request(candidate);
+        return extractEffects(data);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Could not load Resolume effects");
+  }
+
+  async addEffect(target: ResolumeControlTarget, effect: string): Promise<{ message: string }> {
+    if (!effect.trim()) {
+      throw new Error("Effect name or id is required");
+    }
+
+    const basePath = targetPath(target);
+    const body = effect.trim();
+    const payloads: RequestInit[] = [
+      { method: "POST", headers: { "content-type": "text/plain" }, body },
+      { method: "POST", body: JSON.stringify({ effect: body, id: body, name: body }) }
+    ];
+    let lastError: unknown;
+
+    for (const payload of payloads) {
+      try {
+        await this.request(`${basePath}/effects/add`, payload);
+        return { message: `Added effect ${body}` };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Could not add Resolume effect");
+  }
+
+  async removeEffect(target: ResolumeControlTarget, effectIndex: number): Promise<{ message: string }> {
+    if (!effectIndex || effectIndex < 1) {
+      throw new Error("Effect index must be 1 or greater");
+    }
+
+    await this.request(`${targetPath(target)}/effects/${effectIndex}/remove`, { method: "POST" });
+    return { message: `Removed effect ${effectIndex}` };
+  }
+
   private async request<T = unknown>(pathname: string, init: RequestInit = {}): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -169,6 +263,173 @@ export class ResolumeService {
 
 function extractArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function targetNode(composition: Record<string, unknown>, target: ResolumeControlTarget): Record<string, unknown> | null {
+  if (target.scope === "composition") {
+    return composition;
+  }
+
+  const layers = extractArray(composition.layers);
+  const layer = layers[(target.layer ?? 1) - 1] as Record<string, unknown> | undefined;
+
+  if (target.scope === "layer") {
+    return layer ?? null;
+  }
+
+  const clips = extractArray(layer?.clips);
+  return (clips[(target.clip ?? 1) - 1] as Record<string, unknown> | undefined) ?? null;
+}
+
+function targetPath(target: ResolumeControlTarget): string {
+  if (target.scope === "composition") {
+    return "/composition";
+  }
+
+  if (!target.layer) {
+    throw new Error("Layer is required");
+  }
+
+  if (target.scope === "layer") {
+    return `/composition/layers/${target.layer}`;
+  }
+
+  if (!target.clip) {
+    throw new Error("Clip is required");
+  }
+
+  return `/composition/layers/${target.layer}/clips/${target.clip}`;
+}
+
+function extractParameters(node: Record<string, unknown>, pathPrefix = ""): ResolumeParameter[] {
+  const parameters: ResolumeParameter[] = [];
+
+  for (const [key, value] of Object.entries(node)) {
+    const currentPath = pathPrefix ? `${pathPrefix}.${key}` : key;
+
+    if (isParameterObject(value)) {
+      const parameter = value as Record<string, unknown>;
+      const id = stringValue(parameter.id);
+      const name = stringValue(parameter.name) ?? humanize(key);
+
+      if (id) {
+        parameters.push({
+          id,
+          name,
+          path: currentPath,
+          value: parameterValue(parameter.value),
+          min: numberValue(parameter.min),
+          max: numberValue(parameter.max),
+          type: stringValue(parameter.type),
+          group: classifyParameter(`${currentPath} ${name}`)
+        });
+      }
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      parameters.push(...extractParameters(value as Record<string, unknown>, currentPath));
+    } else if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (item && typeof item === "object") {
+          parameters.push(...extractParameters(item as Record<string, unknown>, `${currentPath}.${index + 1}`));
+        }
+      });
+    }
+  }
+
+  return dedupeParameters(parameters);
+}
+
+function isParameterObject(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return Boolean(record.id && "value" in record && ("name" in record || "type" in record));
+}
+
+function dedupeParameters(parameters: ResolumeParameter[]): ResolumeParameter[] {
+  const seen = new Set<string>();
+  return parameters.filter((parameter) => {
+    if (seen.has(parameter.id)) {
+      return false;
+    }
+    seen.add(parameter.id);
+    return true;
+  });
+}
+
+function parameterValue(value: unknown): ResolumeParameterValue {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (value && typeof value === "object" && "value" in value) {
+    return parameterValue((value as { value?: unknown }).value);
+  }
+
+  return null;
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  if (value && typeof value === "object" && "value" in value) {
+    return numberValue((value as { value?: unknown }).value);
+  }
+
+  return undefined;
+}
+
+function classifyParameter(value: string): ResolumeParameter["group"] {
+  const text = value.toLowerCase();
+
+  if (/transform|position|scale|rotation|anchor|width|height|crop|flip|mirror|expand|perspective|slice/.test(text)) {
+    return "transform";
+  }
+
+  if (/effect|bypass|blend|opacity|brightness|contrast|hue|saturation|blur|distort|colorize/.test(text)) {
+    return "effect";
+  }
+
+  if (/audio|volume|pan|gain/.test(text)) {
+    return "audio";
+  }
+
+  if (/transport|play|speed|direction|timeline|beat|bpm/.test(text)) {
+    return "transport";
+  }
+
+  return "other";
+}
+
+function groupRank(group: ResolumeParameter["group"]): number {
+  return ["transform", "effect", "audio", "transport", "other"].indexOf(group);
+}
+
+function extractEffects(data: unknown): ResolumeEffect[] {
+  const effects = Array.isArray(data) ? data : extractArray((data as Record<string, unknown>)?.effects ?? (data as Record<string, unknown>)?.value);
+
+  return effects
+    .map((effect, index) => {
+      const record = effect as Record<string, unknown>;
+      return {
+        id: stringValue(record.id) ?? stringValue(record.identifier) ?? stringValue(record.name) ?? String(index + 1),
+        name: stringValue(record.name) ?? stringValue(record.displayName) ?? `Effect ${index + 1}`,
+        path: stringValue(record.path)
+      };
+    })
+    .filter((effect) => effect.name);
+}
+
+function humanize(value: string): string {
+  return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function stringValue(value: unknown): string | undefined {

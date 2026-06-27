@@ -14,6 +14,8 @@ Qubit Companion is a local-only Next.js application for uploading media and cont
 - Search, sort, filters, favorites, pagination, and recent uploads
 - Preview, rename, delete, replace, duplicate, copy path, and open upload folder
 - Resolume status, composition, layers, clips, load media, trigger, stop, and clear-layer API routes
+- Advanced Resolume controls for discovered transform, expand, effect, audio, transport, and custom parameters
+- Effect add/remove helpers where the local Resolume REST API exposes effect endpoints
 - Touch-friendly dashboard, media browser, settings, toasts, skeletons, and keyboard shortcuts
 
 ## Installation
@@ -110,6 +112,11 @@ If you control Resolume from another computer, keep Qubit Companion running on t
 - `GET /api/resolume/layers`
 - `GET /api/resolume/clips`
 - `POST /api/resolume/load`
+- `GET /api/resolume/parameters`
+- `PUT /api/resolume/parameters`
+- `GET /api/resolume/effects`
+- `POST /api/resolume/effects`
+- `DELETE /api/resolume/effects`
 - `POST /api/resolume/trigger`
 - `POST /api/resolume/stop`
 - `POST /api/resolume/clear-layer`
@@ -181,6 +188,38 @@ Recommended boot order:
   - `U`: jump to upload
   - `R`: refresh
   - `F`: toggle favorites
+
+## Advanced Resolume controls
+
+Open **Media**, choose a file, then click **Send**. The dialog now includes **Advanced Resolume Controls** below the load/trigger buttons.
+
+Available targets:
+
+- **Clip**: controls the selected layer/clip slot
+- **Layer**: controls the selected layer
+- **Composition**: controls composition-level parameters
+
+The app reads the active Resolume composition JSON and finds editable parameters by ID. Parameters are grouped into:
+
+- Transform / Expand
+- Effects
+- Audio
+- Transport
+- Other Parameters
+
+For each discovered parameter, the UI shows a touch-friendly slider, toggle, or text input. Updates are sent through:
+
+```text
+PUT /api/v1/parameter/by-id/{id}
+```
+
+Effect add/remove controls call Resolume effect endpoints when they are available in your Resolume version. If a specific effect endpoint returns a 404, open Resolume's local API reference at:
+
+```text
+http://127.0.0.1:8080/api/docs/rest/
+```
+
+and confirm the exact effect name/id your installation expects.
 
 ## Troubleshooting
 

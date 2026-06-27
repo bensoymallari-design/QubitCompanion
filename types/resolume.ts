@@ -33,3 +33,30 @@ export interface ResolumeClipTarget {
   layer: number;
   clip: number;
 }
+
+export type ResolumeControlScope = "composition" | "layer" | "clip";
+
+export type ResolumeParameterValue = string | number | boolean | null;
+
+export interface ResolumeParameter {
+  id: string;
+  name: string;
+  path: string;
+  value: ResolumeParameterValue;
+  min?: number;
+  max?: number;
+  type?: string;
+  group: "transform" | "effect" | "audio" | "transport" | "other";
+}
+
+export interface ResolumeEffect {
+  id: string;
+  name: string;
+  path?: string;
+}
+
+export interface ResolumeControlTarget {
+  scope: ResolumeControlScope;
+  layer?: number;
+  clip?: number;
+}
