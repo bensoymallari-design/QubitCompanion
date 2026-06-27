@@ -229,6 +229,16 @@ For each discovered parameter, the UI shows a touch-friendly slider, toggle, or 
 PUT /api/v1/parameter/by-id/{id}
 ```
 
+Numeric parameters include both a slider and a direct number field. Enter a value and press **Set** or press Enter for precise control on touch screens.
+
+The advanced panel also includes a **Composition Width / Height** helper with quick buttons:
+
+- **Fit Size**: attempts to set matching width/height/scale transform parameters.
+- **Center**: attempts to center matching position X/Y parameters.
+- **Scale 100%**: attempts to reset matching scale parameters.
+
+These helpers only update parameters that your Resolume version exposes for the selected clip/layer/composition.
+
 Effect add/remove controls call Resolume effect endpoints when they are available in your Resolume version. If a specific effect endpoint returns a 404, open Resolume's local API reference at:
 
 ```text
