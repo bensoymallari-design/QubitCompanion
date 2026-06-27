@@ -129,12 +129,27 @@ export class ResolumeService {
 
   async stopClip(target: ResolumeClipTarget): Promise<{ message: string }> {
     const endpoint = `/composition/layers/${target.layer}/clips/${target.clip}/connect`;
+    const clearEndpoint = `/composition/layers/${target.layer}/clips/${target.clip}/clear`;
     const payloads: RequestInit[] = [
       { method: "POST", headers: { "content-type": "text/plain" }, body: "false" },
       { method: "POST", body: JSON.stringify(false) },
       { method: "POST", body: JSON.stringify({ value: false }) }
     ];
     let lastError: unknown;
+
+    try {
+      await this.request(clearEndpoint, { method: "POST" });
+      return { message: `Cleared layer ${target.layer}, clip ${target.clip}` };
+    } catch (error) {
+      lastError = error;
+    }
+
+    try {
+      await this.request(clearEndpoint, { method: "DELETE" });
+      return { message: `Cleared layer ${target.layer}, clip ${target.clip}` };
+    } catch (error) {
+      lastError = error;
+    }
 
     for (const payload of payloads) {
       try {
@@ -171,6 +186,53 @@ export class ResolumeService {
   async clearLayer(layer: number): Promise<{ message: string }> {
     await this.request(`/composition/layers/${layer}/clear`, { method: "POST" });
     return { message: `Cleared layer ${layer}` };
+  }
+
+  async clearMediaReferences(fileId: string): Promise<{ cleared: number }> {
+    const media = await getMedia(fileId);
+
+    if (!media) {
+      return { cleared: 0 };
+    }
+
+    const composition = (await this.composition()) as Record<string, unknown>;
+    const absolutePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), media.relativePath).toLowerCase();
+    const fileUri = pathToFileURL(absolutePath).href.toLowerCase();
+    const identifiers = [media.id, media.filename, media.originalName, media.relativePath, absolutePath, fileUri].map((value) => value.toLowerCase());
+    const layers = extractArray(composition.layers);
+    let cleared = 0;
+
+    for (const [layerIndex, layer] of layers.entries()) {
+      const clips = extractArray((layer as Record<string, unknown>).clips);
+
+      for (const [clipIndex, clip] of clips.entries()) {
+        const serialized = JSON.stringify(clip).toLowerCase();
+
+        if (identifiers.some((identifier) => identifier && serialized.includes(identifier))) {
+          const target = { layer: layerIndex + 1, clip: clipIndex + 1 };
+          await this.clearClip(target).catch(() => this.stopClip(target));
+          cleared += 1;
+        }
+      }
+    }
+
+    return { cleared };
+  }
+
+  async clearClip(target: ResolumeClipTarget): Promise<{ message: string }> {
+    const endpoint = `/composition/layers/${target.layer}/clips/${target.clip}/clear`;
+    let lastError: unknown;
+
+    for (const method of ["POST", "DELETE"]) {
+      try {
+        await this.request(endpoint, { method });
+        return { message: `Cleared layer ${target.layer}, clip ${target.clip}` };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Could not clear Resolume clip");
   }
 
   async parameters(target: ResolumeControlTarget): Promise<ResolumeParameter[]> {
