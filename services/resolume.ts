@@ -10,6 +10,8 @@ import type {
   ResolumeLoadRequest,
   ResolumeParameter,
   ResolumeParameterValue,
+  ResolumeSource,
+  ResolumeSourceLoadRequest,
   ResolumeStatus
 } from "@/types/resolume";
 
@@ -93,6 +95,26 @@ export class ResolumeService {
     return clips;
   }
 
+  async sources(): Promise<ResolumeSource[]> {
+    const candidates = ["/sources", "/composition/sources"];
+    let lastError: unknown;
+
+    for (const candidate of candidates) {
+      try {
+        const data = await this.request(candidate);
+        const sources = extractSources(data);
+
+        if (sources.length > 0) {
+          return sources;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Could not load Resolume sources");
+  }
+
   async loadMedia(request: ResolumeLoadRequest): Promise<{ message: string }> {
     const media = await getMedia(request.fileId);
 
@@ -142,6 +164,35 @@ export class ResolumeService {
     }
 
     return { message: `Loaded ${media.filename} into layer ${request.layer}, clip ${request.clip}` };
+  }
+
+  async loadSource(request: ResolumeSourceLoadRequest): Promise<{ message: string }> {
+    const endpoint = `/composition/layers/${request.layer}/clips/${request.clip}/open`;
+    const bodies = sourceUriVariants(request.source);
+    let lastError: unknown;
+
+    for (const body of bodies) {
+      try {
+        await this.request(endpoint, {
+          method: "POST",
+          headers: { "content-type": "text/plain" },
+          body
+        });
+
+        if (request.trigger) {
+          await delay(250);
+          await this.triggerClip({ layer: request.layer, clip: request.clip });
+          return { message: `Loaded and triggered ${request.source.name}` };
+        }
+
+        return { message: `Loaded ${request.source.name} into layer ${request.layer}, clip ${request.clip}` };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    const detail = lastError instanceof Error ? lastError.message : "unknown error";
+    throw new Error(`Resolume could not open source "${request.source.name}". Last API error: ${detail}`);
   }
 
   async triggerClip(target: ResolumeClipTarget): Promise<{ message: string }> {
@@ -638,6 +689,91 @@ function extractEffects(data: unknown): ResolumeEffect[] {
       };
     })
     .filter((effect) => effect.name);
+}
+
+function extractSources(data: unknown): ResolumeSource[] {
+  const sources: ResolumeSource[] = [];
+
+  walkSources(data, "", sources);
+
+  const seen = new Set<string>();
+  return sources.filter((source) => {
+    const key = `${source.id}:${source.name}:${source.path ?? ""}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function walkSources(value: unknown, category: string, sources: ResolumeSource[]): void {
+  if (Array.isArray(value)) {
+    value.forEach((item) => walkSources(item, category, sources));
+    return;
+  }
+
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  const name = stringValue(record.name) ?? stringValue(record.displayName) ?? stringValue(record.label);
+  const id = stringValue(record.id) ?? stringValue(record.identifier) ?? stringValue(record.path) ?? name;
+  const path = stringValue(record.path) ?? stringValue(record.uri) ?? stringValue(record.url);
+  const type = stringValue(record.type) ?? stringValue(record.kind) ?? stringValue(record.sourceType) ?? category;
+  const searchable = `${name ?? ""} ${id ?? ""} ${path ?? ""} ${type ?? ""} ${category}`.toLowerCase();
+
+  if (name && id && (record.id || record.path || record.type || record.kind || category)) {
+    sources.push({
+      id,
+      name,
+      type: type || "source",
+      path,
+      uri: path,
+      category,
+      isNdi: searchable.includes("ndi")
+    });
+  }
+
+  for (const [key, child] of Object.entries(record)) {
+    const childCategory = category || key;
+    if (child && typeof child === "object") {
+      walkSources(child, childCategory, sources);
+    }
+  }
+}
+
+function sourceUriVariants(source: ResolumeSource): string[] {
+  const variants = new Set<string>();
+  const name = source.name.trim();
+  const encodedName = encodeURIComponent(name);
+  const rawPath = source.path?.trim();
+
+  if (rawPath) {
+    variants.add(rawPath);
+    variants.add(encodeURI(rawPath));
+  }
+
+  if (source.uri) {
+    variants.add(source.uri);
+  }
+
+  if (source.isNdi) {
+    variants.add(`ndi://${name}`);
+    variants.add(`ndi://${encodedName}`);
+  }
+
+  if (source.category) {
+    variants.add(`source:///${source.category}/${encodedName}`);
+    variants.add(`source:///${source.category}/${name}`);
+  }
+
+  variants.add(`source:///${encodedName}`);
+  variants.add(`source:///${name}`);
+  variants.add(name);
+
+  return Array.from(variants).filter(Boolean);
 }
 
 function humanize(value: string): string {

@@ -247,6 +247,27 @@ http://127.0.0.1:8080/api/docs/rest/
 
 and confirm the exact effect name/id your installation expects.
 
+## NDI source loading
+
+The Media page includes an **NDI Sources** panel.
+
+Typical setup:
+
+1. Start an NDI sender on the LAN, such as OBS with NDI output enabled.
+2. Make sure Resolume can see the NDI source in its **Sources** panel.
+3. In Qubit Companion, open **Media**.
+4. Click **Refresh Sources**.
+5. Select the NDI source, layer, and clip.
+6. Click **Load & Trigger NDI**.
+
+You can also type a manual NDI source name, for example:
+
+```text
+STREAM-PC (OBS)
+```
+
+The app sends source names to Resolume through the clip `open` API. The NDI stream must already be discoverable by Resolume on the same LAN.
+
 ## Troubleshooting
 
 ### Large video upload does not finish
