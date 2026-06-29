@@ -35,6 +35,23 @@ export interface ResolumeClipTarget {
   clip: number;
 }
 
+export interface ResolumeSource {
+  id: string;
+  name: string;
+  type: string;
+  path?: string;
+  uri?: string;
+  category?: string;
+  isNdi: boolean;
+}
+
+export interface ResolumeSourceLoadRequest {
+  source: ResolumeSource;
+  layer: number;
+  clip: number;
+  trigger?: boolean;
+}
+
 export type ResolumeControlScope = "composition" | "layer" | "clip";
 
 export type ResolumeParameterValue = string | number | boolean | null;
