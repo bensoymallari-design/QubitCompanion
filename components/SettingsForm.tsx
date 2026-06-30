@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SystemControls } from "@/components/SystemControls";
 import { useToast } from "@/components/ToastProvider";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/types/settings";
 
@@ -106,6 +107,15 @@ export function SettingsForm() {
             Dark Mode
             <input type="checkbox" checked={settings.darkMode} onChange={(event) => update("darkMode", event.target.checked)} className="h-7 w-7" />
           </label>
+          <label className="flex min-h-16 items-center justify-between rounded-2xl border border-rose-400/30 bg-rose-500/10 px-5 text-lg font-bold">
+            Enable System Controls
+            <input
+              type="checkbox"
+              checked={settings.allowSystemControls}
+              onChange={(event) => update("allowSystemControls", event.target.checked)}
+              className="h-7 w-7"
+            />
+          </label>
         </div>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -135,6 +145,9 @@ export function SettingsForm() {
           </div>
         </dl>
       </aside>
+      <div className="xl:col-span-2">
+        <SystemControls enabled={settings.allowSystemControls} />
+      </div>
     </div>
   );
 }

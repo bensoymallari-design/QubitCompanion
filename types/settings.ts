@@ -4,6 +4,7 @@ export interface AppSettings {
   uploadFolder: string;
   autoRefresh: boolean;
   darkMode: boolean;
+  allowSystemControls: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -11,5 +12,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   resolumePort: 8080,
   uploadFolder: "storage/uploads",
   autoRefresh: true,
-  darkMode: true
+  darkMode: true,
+  allowSystemControls: false
 };

@@ -74,7 +74,8 @@ export async function writeSettings(settings: AppSettings): Promise<AppSettings>
     resolumePort: Number(settings.resolumePort) || DEFAULT_SETTINGS.resolumePort,
     uploadFolder: normalizeUploadFolder(settings.uploadFolder),
     autoRefresh: Boolean(settings.autoRefresh),
-    darkMode: Boolean(settings.darkMode)
+    darkMode: Boolean(settings.darkMode),
+    allowSystemControls: Boolean(settings.allowSystemControls)
   };
 
   await ensureWritableUploadFolder(normalized.uploadFolder);
