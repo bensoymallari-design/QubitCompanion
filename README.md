@@ -289,6 +289,16 @@ STREAM-PC (OBS)
 
 The app sends source names to Resolume through the clip `open` API. The NDI stream must already be discoverable by Resolume on the same LAN.
 
+The NDI panel also includes:
+
+- **Composition Width / Height** inputs
+- **Fit Size**
+- **Center**
+- **Scale 100%**
+- **Remove NDI**
+
+Fit/Center/Scale update matching transform parameters on the selected clip when Resolume exposes those controls. Remove NDI clears the selected clip slot.
+
 ## Troubleshooting
 
 ### Large video upload does not finish
