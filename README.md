@@ -196,6 +196,27 @@ Recommended boot order:
 2. Qubit Companion starts.
 3. Browser opens `http://localhost:3000`.
 
+## Resolume close and PC power controls
+
+Open **Settings** and enable **System Controls** to show the guarded **Danger Zone** actions.
+
+Available actions:
+
+- Save Resolume
+- Save & Close Resolume
+- Close Resolume Without Save
+- Shutdown PC
+- Restart PC
+
+Each action requires typing an exact confirmation phrase before the button is enabled. These commands run on the Windows PC hosting the app. Leave **System Controls** disabled when operators should not be able to close Resolume or power off the PC.
+
+Notes:
+
+- Save uses Windows automation to send `Ctrl+S` to the Resolume window.
+- Save & Close sends `Ctrl+S`, waits briefly, then closes the Resolume window.
+- Close Without Save force-closes Resolume and can lose unsaved changes.
+- Shutdown/Restart schedule Windows power actions with a short delay.
+
 ## Touch and keyboard usage
 
 - Buttons and controls use large hit areas.
