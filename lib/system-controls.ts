@@ -67,6 +67,23 @@ $processes | ForEach-Object {
     if ($_.MainWindowHandle -ne 0) { [void]$_.CloseMainWindow() }
   } catch {}
 }
+Start-Sleep -Milliseconds 800
+$quitDialogProcess = Get-Process | Where-Object { $_.ProcessName -match "Arena|Resolume|Avenue" -and $_.MainWindowTitle -match "Quit|Resolume|Arena|Avenue" } | Select-Object -First 1
+if ($quitDialogProcess) {
+  [void]$shell.AppActivate($quitDialogProcess.Id)
+  Start-Sleep -Milliseconds 300
+}
+# Resolume's quit dialog highlights "Save & Quit" by default after a graceful close.
+[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+Start-Sleep -Milliseconds 1200
+$remaining = Get-Process | Where-Object { $_.ProcessName -match "Arena|Resolume|Avenue" }
+if ($remaining) {
+  $remaining | ForEach-Object {
+    try {
+      if ($_.MainWindowHandle -ne 0) { [void]$_.CloseMainWindow() }
+    } catch {}
+  }
+}
 `
     : "";
 
