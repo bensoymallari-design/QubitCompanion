@@ -36,7 +36,7 @@ const ACTIONS: ControlAction[] = [
   },
   {
     label: "Save & Close Resolume",
-    description: "Send Ctrl+S, wait briefly, then close the Resolume window.",
+    description: "Send Ctrl+S, close Resolume, then confirm the Save & Quit dialog.",
     endpoint: "/api/resolume/app",
     action: "save-close",
     confirmation: "SAVE CLOSE",
