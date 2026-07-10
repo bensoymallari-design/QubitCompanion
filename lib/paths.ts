@@ -1,5 +1,5 @@
 import path from "node:path";
-import { DATABASE_PATH, SETTINGS_PATH, THUMBNAILS_DIR, UPLOADS_DIR } from "@/lib/constants";
+import { DATABASE_PATH, OUTPUT_PRESETS_PATH, SETTINGS_PATH, THUMBNAILS_DIR, UPLOADS_DIR } from "@/lib/constants";
 
 export function resolveFromRoot(relativePath: string): string {
   return path.join(/*turbopackIgnore: true*/ process.cwd(), relativePath);
@@ -19,6 +19,10 @@ export function databasePath(): string {
 
 export function settingsPath(): string {
   return resolveFromRoot(SETTINGS_PATH);
+}
+
+export function outputPresetsPath(): string {
+  return resolveFromRoot(OUTPUT_PRESETS_PATH);
 }
 
 export function ensureInsideStorage(absolutePath: string): void {

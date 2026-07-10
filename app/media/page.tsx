@@ -1,5 +1,6 @@
 import { MediaLibrary } from "@/components/MediaLibrary";
 import { NdiSourcePanel } from "@/components/NdiSourcePanel";
+import { OutputControlsPanel } from "@/components/OutputControlsPanel";
 
 export default function MediaPage() {
   return (
@@ -9,6 +10,7 @@ export default function MediaPage() {
         <h1 className="mt-3 text-4xl font-black md:text-5xl">Upload and manage files</h1>
       </div>
       <NdiSourcePanel />
+      <OutputControlsPanel />
       <MediaLibrary />
     </div>
   );

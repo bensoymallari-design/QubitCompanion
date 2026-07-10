@@ -5,6 +5,7 @@ export const UPLOADS_DIR = `${STORAGE_DIR}/uploads`;
 export const THUMBNAILS_DIR = `${STORAGE_DIR}/thumbnails`;
 export const DATABASE_PATH = `${STORAGE_DIR}/database.json`;
 export const SETTINGS_PATH = `${STORAGE_DIR}/settings.json`;
+export const OUTPUT_PRESETS_PATH = `${STORAGE_DIR}/output-presets.json`;
 
 export const SUPPORTED_EXTENSIONS: MediaExtension[] = [
   "png",

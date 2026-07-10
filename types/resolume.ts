@@ -56,6 +56,11 @@ export type ResolumeControlScope = "composition" | "layer" | "clip";
 
 export type ResolumeParameterValue = string | number | boolean | null;
 
+export interface ResolumeParameterOption {
+  label: string;
+  value: string | number | boolean;
+}
+
 export interface ResolumeParameter {
   id: string;
   name: string;
@@ -64,7 +69,20 @@ export interface ResolumeParameter {
   min?: number;
   max?: number;
   type?: string;
+  options?: ResolumeParameterOption[];
   group: "transform" | "effect" | "audio" | "transport" | "other";
+}
+
+export interface ResolumeOutputPreset {
+  id: string;
+  name: string;
+  createdAt: string;
+  parameters: Array<{
+    id: string;
+    name: string;
+    path: string;
+    value: ResolumeParameterValue;
+  }>;
 }
 
 export interface ResolumeEffect {
