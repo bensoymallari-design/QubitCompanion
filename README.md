@@ -299,6 +299,21 @@ The NDI panel also includes:
 
 Fit/Center/Scale update matching transform parameters on the selected clip when Resolume exposes those controls. Remove NDI clears the selected clip slot.
 
+## Output controls and presets
+
+The Media page includes an **Output Controls** panel.
+
+Important Resolume limitation: many Resolume versions do **not** expose full Advanced Output preset switching, screen routing, HDMI/virtual display selection, or slice mapping through the REST API. When those controls are not exposed by Resolume, they still need to be changed inside Resolume's Advanced Output window.
+
+What the app can do:
+
+- Discover output/screen/display/device parameters that Resolume exposes through the composition API.
+- Let you edit those exposed parameters with direct text/number inputs or dropdowns when options are available.
+- Save the current exposed output values as a local preset in `storage/output-presets.json`.
+- Reapply or delete those local presets later.
+
+Use **Refresh Output** after changing Resolume output settings manually so the web app can rediscover available parameters.
+
 ## Troubleshooting
 
 ### Large video upload does not finish
