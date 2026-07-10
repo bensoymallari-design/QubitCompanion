@@ -324,6 +324,8 @@ C:\Users\<username>\Documents\Resolume Avenue\presets\screensetup
 
 The app can list those files, but Resolume's REST API does not reliably expose switching/applying those Advanced Output presets from an external web app. Select/apply the actual preset in Resolume's Advanced Output window when needed.
 
+Use **Reveal** to select the preset file in Explorer, or **Copy Path** to copy its path. Then open Resolume's Advanced Output window and choose the preset from Resolume's own preset dropdown. HDMI/virtual display choices also only appear in the web app if Resolume exposes them as REST parameters; otherwise they must be changed in Resolume.
+
 ## Troubleshooting
 
 ### Large video upload does not finish
