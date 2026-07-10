@@ -1,7 +1,11 @@
 import { promises as fs } from "node:fs";
+import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import type { ResolumeAdvancedOutputPreset } from "@/types/resolume";
+
+const execFileAsync = promisify(execFile);
 
 const SCREEN_SETUP_RELATIVE_PATHS = [
   path.join("presets", "screensetup"),
@@ -37,6 +41,24 @@ export async function listAdvancedOutputPresets(): Promise<ResolumeAdvancedOutpu
   }
 
   return dedupePresets(presets).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function revealAdvancedOutputPreset(filePath: string): Promise<string> {
+  if (!filePath.toLowerCase().endsWith(".xml")) {
+    throw new Error("Only Resolume Advanced Output .xml preset files can be revealed.");
+  }
+
+  await fs.access(filePath);
+
+  if (process.platform === "win32") {
+    await execFileAsync("explorer.exe", ["/select,", filePath]);
+    return "Preset selected in Explorer.";
+  }
+
+  const folder = path.dirname(filePath);
+  const command = process.platform === "darwin" ? "open" : "xdg-open";
+  await execFileAsync(command, [folder]);
+  return "Preset folder opened.";
 }
 
 async function candidatePresetFolders(): Promise<string[]> {
