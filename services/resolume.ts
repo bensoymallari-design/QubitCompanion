@@ -9,6 +9,7 @@ import type {
   ResolumeLayer,
   ResolumeLoadRequest,
   ResolumeParameter,
+  ResolumeParameterOption,
   ResolumeParameterValue,
   ResolumeSource,
   ResolumeSourceLoadRequest,
@@ -362,6 +363,14 @@ export class ResolumeService {
     );
   }
 
+  async outputParameters(): Promise<ResolumeParameter[]> {
+    const parameters = await this.parameters({ scope: "composition" });
+    return parameters.filter((parameter) => {
+      const text = `${parameter.path} ${parameter.name} ${parameter.type ?? ""}`.toLowerCase();
+      return /output|screen|display|monitor|device|virtual|advanced|preset|slice|composition width|composition height|resolution/.test(text);
+    });
+  }
+
   async updateParameter(id: string, value: ResolumeParameterValue): Promise<{ message: string }> {
     if (!id) {
       throw new Error("Parameter id is required");
@@ -584,6 +593,7 @@ function extractParameters(node: Record<string, unknown>, pathPrefix = ""): Reso
           min: numberValue(parameter.min),
           max: numberValue(parameter.max),
           type: stringValue(parameter.type),
+          options: parameterOptions(parameter),
           group: classifyParameter(`${currentPath} ${name}`)
         });
       }
@@ -631,6 +641,37 @@ function parameterValue(value: unknown): ResolumeParameterValue {
   }
 
   return null;
+}
+
+function parameterOptions(parameter: Record<string, unknown>): ResolumeParameterOption[] | undefined {
+  const raw = parameter.options ?? parameter.choices ?? parameter.items;
+  const values = extractArray(raw);
+
+  if (values.length === 0) {
+    return undefined;
+  }
+
+  const options = values
+    .map((item): ResolumeParameterOption | null => {
+      if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+        return { label: String(item), value: item };
+      }
+
+      if (item && typeof item === "object") {
+        const record = item as Record<string, unknown>;
+        const value = parameterValue(record.value ?? record.id ?? record.name);
+        const label = stringValue(record.name) ?? stringValue(record.label) ?? String(value ?? "");
+
+        if (value !== null && label) {
+          return { label, value };
+        }
+      }
+
+      return null;
+    })
+    .filter((item): item is ResolumeParameterOption => Boolean(item));
+
+  return options.length > 0 ? options : undefined;
 }
 
 function numberValue(value: unknown): number | undefined {
