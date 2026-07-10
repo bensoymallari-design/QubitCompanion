@@ -299,33 +299,6 @@ The NDI panel also includes:
 
 Fit/Center/Scale update matching transform parameters on the selected clip when Resolume exposes those controls. Remove NDI clears the selected clip slot.
 
-## Output controls and presets
-
-The Media page includes an **Output Controls** panel.
-
-Important Resolume limitation: many Resolume versions do **not** expose full Advanced Output preset switching, screen routing, HDMI/virtual display selection, or slice mapping through the REST API. When those controls are not exposed by Resolume, they still need to be changed inside Resolume's Advanced Output window.
-
-What the app can do:
-
-- Discover output/screen/display/device parameters that Resolume exposes through the composition API.
-- Let you edit those exposed parameters with direct text/number inputs or dropdowns when options are available.
-- Save the current exposed output values as a local preset in `storage/output-presets.json`.
-- Reapply or delete those local presets later.
-- Retrieve Resolume-created Advanced Output `.xml` preset files from common Documents preset folders and show them in a dropdown.
-
-Use **Refresh Output** after changing Resolume output settings manually so the web app can rediscover available parameters.
-
-Resolume-created Advanced Output preset files are typically found on Windows under:
-
-```text
-C:\Users\<username>\Documents\Resolume Arena\presets\screensetup
-C:\Users\<username>\Documents\Resolume Avenue\presets\screensetup
-```
-
-The app can list those files, but Resolume's REST API does not reliably expose switching/applying those Advanced Output presets from an external web app. Select/apply the actual preset in Resolume's Advanced Output window when needed.
-
-Use **Open Folder** or **Copy Path**, then apply the preset manually in Resolume's Advanced Output preset menu. HDMI/virtual display choices also only appear in the web app if Resolume exposes them as REST parameters; otherwise they must be changed in Resolume.
-
 ## Troubleshooting
 
 ### Large video upload does not finish

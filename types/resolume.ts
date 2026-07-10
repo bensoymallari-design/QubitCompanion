@@ -73,25 +73,6 @@ export interface ResolumeParameter {
   group: "transform" | "effect" | "audio" | "transport" | "other";
 }
 
-export interface ResolumeOutputPreset {
-  id: string;
-  name: string;
-  createdAt: string;
-  parameters: Array<{
-    id: string;
-    name: string;
-    path: string;
-    value: ResolumeParameterValue;
-  }>;
-}
-
-export interface ResolumeAdvancedOutputPreset {
-  name: string;
-  filePath: string;
-  folderPath: string;
-  updatedAt: string;
-}
-
 export interface ResolumeEffect {
   id: string;
   name: string;
