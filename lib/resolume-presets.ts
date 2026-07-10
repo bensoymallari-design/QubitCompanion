@@ -61,25 +61,6 @@ export async function revealAdvancedOutputPreset(filePath: string): Promise<stri
   return "Preset folder opened.";
 }
 
-export async function applyAdvancedOutputPreset(filePath: string): Promise<string> {
-  if (process.platform !== "win32") {
-    throw new Error("Applying Resolume Advanced Output presets is only available on Windows.");
-  }
-
-  if (!filePath.toLowerCase().endsWith(".xml")) {
-    throw new Error("Only Resolume Advanced Output .xml preset files can be applied.");
-  }
-
-  await fs.access(filePath);
-  const presetName = path.basename(filePath, path.extname(filePath));
-  await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", advancedOutputApplyScript(presetName)], {
-    windowsHide: true,
-    timeout: 15000
-  });
-
-  return `Requested Advanced Output preset "${presetName}" in Resolume.`;
-}
-
 function launchDetached(command: string, args: string[]): void {
   const child = spawn(command, args, {
     detached: true,
@@ -87,100 +68,6 @@ function launchDetached(command: string, args: string[]): void {
     windowsHide: false
   });
   child.unref();
-}
-
-function advancedOutputApplyScript(presetName: string): string {
-  const escapedPreset = presetName.replace(/'/g, "''");
-
-  return `
-$ErrorActionPreference = "Stop"
-$presetName = '${escapedPreset}'
-$processes = Get-Process | Where-Object { $_.ProcessName -match "Arena|Resolume|Avenue" }
-if (-not $processes) { throw "Resolume process was not found." }
-
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
-
-$shell = New-Object -ComObject WScript.Shell
-$target = $processes | Where-Object { $_.MainWindowTitle } | Select-Object -First 1
-if ($target) {
-  [void]$shell.AppActivate($target.Id)
-  Start-Sleep -Milliseconds 300
-}
-
-# Open Advanced Output. Resolume Windows shortcut: Ctrl+Shift+A.
-[System.Windows.Forms.SendKeys]::SendWait("^+a")
-Start-Sleep -Milliseconds 1200
-
-$root = [System.Windows.Automation.AutomationElement]::RootElement
-$windowCondition = New-Object System.Windows.Automation.PropertyCondition(
-  [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-  [System.Windows.Automation.ControlType]::Window
-)
-$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $windowCondition)
-$resolumeIds = @($processes | ForEach-Object { $_.Id })
-$targetWindow = $null
-
-foreach ($window in $windows) {
-  if ($resolumeIds -contains $window.Current.ProcessId -and $window.Current.Name -match "Advanced|Output|Resolume|Arena|Avenue") {
-    $targetWindow = $window
-    break
-  }
-}
-
-if (-not $targetWindow) {
-  throw "Advanced Output window was not found. Open Advanced Output in Resolume once, then try again."
-}
-
-$comboCondition = New-Object System.Windows.Automation.PropertyCondition(
-  [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-  [System.Windows.Automation.ControlType]::ComboBox
-)
-$combos = $targetWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $comboCondition)
-if ($combos.Count -eq 0) {
-  throw "No preset dropdown was exposed by Resolume to Windows UI Automation."
-}
-
-$listItemCondition = New-Object System.Windows.Automation.PropertyCondition(
-  [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-  [System.Windows.Automation.ControlType]::ListItem
-)
-
-foreach ($combo in $combos) {
-  try {
-    $expandPattern = $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
-    $expandPattern.Expand()
-    Start-Sleep -Milliseconds 350
-  } catch {}
-
-  $items = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $listItemCondition)
-  foreach ($item in $items) {
-    if ($item.Current.Name -eq $presetName) {
-      try {
-        $selectPattern = $item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
-        $selectPattern.Select()
-      } catch {
-        try {
-          $invokePattern = $item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-          $invokePattern.Invoke()
-        } catch {
-          [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-        }
-      }
-      Start-Sleep -Milliseconds 500
-      return
-    }
-  }
-
-  try {
-    $expandPattern = $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
-    $expandPattern.Collapse()
-  } catch {}
-}
-
-throw "Preset '$presetName' was not found in the visible Resolume Advanced Output preset dropdown."
-`;
 }
 
 async function candidatePresetFolders(): Promise<string[]> {

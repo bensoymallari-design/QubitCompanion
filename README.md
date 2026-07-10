@@ -324,7 +324,7 @@ C:\Users\<username>\Documents\Resolume Avenue\presets\screensetup
 
 The app can list those files, but Resolume's REST API does not reliably expose switching/applying those Advanced Output presets from an external web app. Select/apply the actual preset in Resolume's Advanced Output window when needed.
 
-Use **Apply** to attempt switching the selected `.xml` preset in Resolume. This is a Windows-only experimental helper: it opens Resolume Advanced Output with `Ctrl+Shift+A` and uses Windows UI Automation to select the preset from Resolume's own dropdown. If Resolume does not expose that dropdown to Windows UI Automation, use **Open Folder** or **Copy Path**, then apply the preset manually in Resolume. HDMI/virtual display choices also only appear in the web app if Resolume exposes them as REST parameters; otherwise they must be changed in Resolume.
+Use **Open Folder** or **Copy Path**, then apply the preset manually in Resolume's Advanced Output preset menu. HDMI/virtual display choices also only appear in the web app if Resolume exposes them as REST parameters; otherwise they must be changed in Resolume.
 
 ## Troubleshooting
 
