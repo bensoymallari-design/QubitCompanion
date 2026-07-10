@@ -180,6 +180,40 @@ export function OutputControlsPanel() {
     }
   }
 
+  async function revealAdvancedPreset() {
+    if (!selectedAdvancedPresetPath) {
+      notify("Select a Resolume Advanced Output preset first", "error");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/resolume/advanced-output-presets/reveal", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filePath: selectedAdvancedPresetPath })
+      });
+      const data = (await response.json()) as { error?: string; message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not reveal preset file");
+      }
+
+      notify(data.message ?? "Preset file revealed", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not reveal preset file", "error");
+    }
+  }
+
+  async function copyAdvancedPresetPath() {
+    if (!selectedAdvancedPresetPath) {
+      notify("Select a Resolume Advanced Output preset first", "error");
+      return;
+    }
+
+    await navigator.clipboard.writeText(selectedAdvancedPresetPath);
+    notify("Preset path copied", "success");
+  }
+
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/5 p-5 md:p-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -224,7 +258,7 @@ export function OutputControlsPanel() {
       <div className="mt-5 rounded-3xl border border-amber-300/20 bg-amber-300/10 p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
           <label className="block flex-1">
-            <span className="text-sm font-bold text-amber-100">Resolume-created Advanced Output preset files</span>
+            <span className="text-sm font-bold text-amber-100">Resolume-created Advanced Output preset files (manual apply)</span>
             <select
               value={selectedAdvancedPresetPath}
               onChange={(event) => setSelectedAdvancedPresetPath(event.target.value)}
@@ -238,9 +272,17 @@ export function OutputControlsPanel() {
               ))}
             </select>
           </label>
-          <button type="button" onClick={loadOutputState} disabled={loading} className="min-h-14 rounded-2xl bg-white/10 px-5 font-black disabled:opacity-50">
-            Refresh Preset Files
-          </button>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <button type="button" onClick={loadOutputState} disabled={loading} className="min-h-14 rounded-2xl bg-white/10 px-5 font-black disabled:opacity-50">
+              Refresh Files
+            </button>
+            <button type="button" onClick={revealAdvancedPreset} disabled={!selectedAdvancedPresetPath} className="min-h-14 rounded-2xl bg-amber-300 px-5 font-black text-slate-950 disabled:opacity-50">
+              Reveal
+            </button>
+            <button type="button" onClick={copyAdvancedPresetPath} disabled={!selectedAdvancedPresetPath} className="min-h-14 rounded-2xl bg-white/10 px-5 font-black disabled:opacity-50">
+              Copy Path
+            </button>
+          </div>
         </div>
         {selectedAdvancedPresetPath ? (
           <p className="mt-3 break-all text-xs text-amber-50/80">
@@ -248,7 +290,7 @@ export function OutputControlsPanel() {
           </p>
         ) : null}
         <p className="mt-3 text-xs text-amber-50/80">
-          These are `.xml` presets saved by Resolume in its Documents preset folders. Resolume's REST API does not expose reliable switching for these presets, so this dropdown is for retrieval/visibility. Select/apply the actual Advanced Output preset inside Resolume when needed.
+          These are `.xml` presets saved by Resolume in its Documents preset folders. Resolume's REST API does not expose reliable switching for these presets or HDMI/virtual display routing, so this dropdown is for retrieval/visibility. Click Reveal, then select/apply the preset inside Resolume's Advanced Output preset menu.
         </p>
       </div>
 
