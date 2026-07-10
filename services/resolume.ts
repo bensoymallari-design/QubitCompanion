@@ -363,14 +363,6 @@ export class ResolumeService {
     );
   }
 
-  async outputParameters(): Promise<ResolumeParameter[]> {
-    const parameters = await this.parameters({ scope: "composition" });
-    return parameters.filter((parameter) => {
-      const text = `${parameter.path} ${parameter.name} ${parameter.type ?? ""}`.toLowerCase();
-      return /output|screen|display|monitor|device|virtual|advanced|preset|slice|composition width|composition height|resolution/.test(text);
-    });
-  }
-
   async updateParameter(id: string, value: ResolumeParameterValue): Promise<{ message: string }> {
     if (!id) {
       throw new Error("Parameter id is required");
