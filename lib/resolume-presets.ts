@@ -48,7 +48,7 @@ async function candidatePresetFolders(): Promise<string[]> {
 
     for (const resolumeFolder of resolumeFolders) {
       for (const relativePath of SCREEN_SETUP_RELATIVE_PATHS) {
-        folders.add(path.join(resolumeFolder, relativePath));
+        folders.add(joinExternalPath(resolumeFolder, relativePath));
       }
     }
   }
@@ -60,10 +60,10 @@ function candidateDocumentsFolders(): string[] {
   const home = os.homedir();
   const userProfile = process.env.USERPROFILE;
   const candidates = [
-    userProfile ? path.join(userProfile, "Documents") : "",
-    userProfile ? path.join(userProfile, "My Documents") : "",
-    home ? path.join(home, "Documents") : "",
-    home ? path.join(home, "My Documents") : ""
+    userProfile ? joinExternalPath(userProfile, "Documents") : "",
+    userProfile ? joinExternalPath(userProfile, "My Documents") : "",
+    home ? joinExternalPath(home, "Documents") : "",
+    home ? joinExternalPath(home, "My Documents") : ""
   ];
 
   return Array.from(new Set(candidates.filter(Boolean)));
@@ -80,14 +80,14 @@ async function resolumeDocumentFolders(documentsFolder: string): Promise<string[
   ];
 
   for (const name of knownNames) {
-    folders.add(path.join(documentsFolder, name));
+    folders.add(joinExternalPath(documentsFolder, name));
   }
 
   try {
     const entries = await fs.readdir(documentsFolder, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory() && entry.name.toLowerCase().includes("resolume")) {
-        folders.add(path.join(documentsFolder, entry.name));
+        folders.add(joinExternalPath(documentsFolder, entry.name));
       }
     }
   } catch {
@@ -95,6 +95,10 @@ async function resolumeDocumentFolders(documentsFolder: string): Promise<string[
   }
 
   return Array.from(folders);
+}
+
+function joinExternalPath(base: string, ...parts: string[]): string {
+  return path.join(/*turbopackIgnore: true*/ base, ...parts);
 }
 
 function dedupePresets(presets: ResolumeAdvancedOutputPreset[]): ResolumeAdvancedOutputPreset[] {
