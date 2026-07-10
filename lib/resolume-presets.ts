@@ -52,7 +52,7 @@ export async function revealAdvancedOutputPreset(filePath: string): Promise<stri
 
   if (process.platform === "win32") {
     launchDetached("explorer.exe", [`/select,${filePath}`]);
-    return "Preset selected in Explorer.";
+    return "Preset folder opened. Apply the preset inside Resolume Advanced Output.";
   }
 
   const folder = path.dirname(filePath);

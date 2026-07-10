@@ -277,7 +277,7 @@ export function OutputControlsPanel() {
               Refresh Files
             </button>
             <button type="button" onClick={revealAdvancedPreset} disabled={!selectedAdvancedPresetPath} className="min-h-14 rounded-2xl bg-amber-300 px-5 font-black text-slate-950 disabled:opacity-50">
-              Reveal
+              Open Folder
             </button>
             <button type="button" onClick={copyAdvancedPresetPath} disabled={!selectedAdvancedPresetPath} className="min-h-14 rounded-2xl bg-white/10 px-5 font-black disabled:opacity-50">
               Copy Path
@@ -290,7 +290,7 @@ export function OutputControlsPanel() {
           </p>
         ) : null}
         <p className="mt-3 text-xs text-amber-50/80">
-          These are `.xml` presets saved by Resolume in its Documents preset folders. Resolume's REST API does not expose reliable switching for these presets or HDMI/virtual display routing, so this dropdown is for retrieval/visibility. Click Reveal, then select/apply the preset inside Resolume's Advanced Output preset menu.
+          These are `.xml` presets saved by Resolume in its Documents preset folders. Resolume's REST API does not expose reliable switching for these presets or HDMI/virtual display routing, so this dropdown is for retrieval/visibility only. Click Open Folder, then select/apply the preset inside Resolume's Advanced Output preset menu.
         </p>
       </div>
 
