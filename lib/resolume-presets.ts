@@ -51,8 +51,13 @@ export async function revealAdvancedOutputPreset(filePath: string): Promise<stri
   await fs.access(filePath);
 
   if (process.platform === "win32") {
-    await execFileAsync("explorer.exe", ["/select,", filePath]);
-    return "Preset selected in Explorer.";
+    try {
+      await execFileAsync("explorer.exe", [`/select,${filePath}`]);
+      return "Preset selected in Explorer.";
+    } catch {
+      await execFileAsync("explorer.exe", [path.dirname(filePath)]);
+      return "Preset folder opened.";
+    }
   }
 
   const folder = path.dirname(filePath);
