@@ -204,6 +204,33 @@ export function OutputControlsPanel() {
     }
   }
 
+  async function applyAdvancedPreset() {
+    if (!selectedAdvancedPresetPath) {
+      notify("Select a Resolume Advanced Output preset first", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/resolume/advanced-output-presets/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filePath: selectedAdvancedPresetPath })
+      });
+      const data = (await response.json()) as { error?: string; message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not apply Resolume preset");
+      }
+
+      notify(data.message ?? "Resolume preset apply requested", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not apply Resolume preset", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function copyAdvancedPresetPath() {
     if (!selectedAdvancedPresetPath) {
       notify("Select a Resolume Advanced Output preset first", "error");
@@ -272,9 +299,12 @@ export function OutputControlsPanel() {
               ))}
             </select>
           </label>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-4">
             <button type="button" onClick={loadOutputState} disabled={loading} className="min-h-14 rounded-2xl bg-white/10 px-5 font-black disabled:opacity-50">
               Refresh Files
+            </button>
+            <button type="button" onClick={applyAdvancedPreset} disabled={!selectedAdvancedPresetPath || loading} className="min-h-14 rounded-2xl bg-emerald-300 px-5 font-black text-slate-950 disabled:opacity-50">
+              Apply
             </button>
             <button type="button" onClick={revealAdvancedPreset} disabled={!selectedAdvancedPresetPath} className="min-h-14 rounded-2xl bg-amber-300 px-5 font-black text-slate-950 disabled:opacity-50">
               Open Folder
@@ -290,7 +320,7 @@ export function OutputControlsPanel() {
           </p>
         ) : null}
         <p className="mt-3 text-xs text-amber-50/80">
-          These are `.xml` presets saved by Resolume in its Documents preset folders. Resolume's REST API does not expose reliable switching for these presets or HDMI/virtual display routing, so this dropdown is for retrieval/visibility only. Click Open Folder, then select/apply the preset inside Resolume's Advanced Output preset menu.
+          These are `.xml` presets saved by Resolume in its Documents preset folders. Resolume's REST API does not expose reliable switching for these presets or HDMI/virtual display routing. Apply is experimental: it opens Advanced Output on the server PC and tries to select the preset from Resolume's own dropdown using Windows UI automation.
         </p>
       </div>
 
