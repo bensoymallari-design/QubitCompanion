@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -51,19 +51,23 @@ export async function revealAdvancedOutputPreset(filePath: string): Promise<stri
   await fs.access(filePath);
 
   if (process.platform === "win32") {
-    try {
-      await execFileAsync("explorer.exe", [`/select,${filePath}`]);
-      return "Preset selected in Explorer.";
-    } catch {
-      await execFileAsync("explorer.exe", [path.dirname(filePath)]);
-      return "Preset folder opened.";
-    }
+    launchDetached("explorer.exe", [`/select,${filePath}`]);
+    return "Preset selected in Explorer.";
   }
 
   const folder = path.dirname(filePath);
   const command = process.platform === "darwin" ? "open" : "xdg-open";
   await execFileAsync(command, [folder]);
   return "Preset folder opened.";
+}
+
+function launchDetached(command: string, args: string[]): void {
+  const child = spawn(command, args, {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: false
+  });
+  child.unref();
 }
 
 async function candidatePresetFolders(): Promise<string[]> {
