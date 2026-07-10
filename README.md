@@ -311,8 +311,18 @@ What the app can do:
 - Let you edit those exposed parameters with direct text/number inputs or dropdowns when options are available.
 - Save the current exposed output values as a local preset in `storage/output-presets.json`.
 - Reapply or delete those local presets later.
+- Retrieve Resolume-created Advanced Output `.xml` preset files from common Documents preset folders and show them in a dropdown.
 
 Use **Refresh Output** after changing Resolume output settings manually so the web app can rediscover available parameters.
+
+Resolume-created Advanced Output preset files are typically found on Windows under:
+
+```text
+C:\Users\<username>\Documents\Resolume Arena\presets\screensetup
+C:\Users\<username>\Documents\Resolume Avenue\presets\screensetup
+```
+
+The app can list those files, but Resolume's REST API does not reliably expose switching/applying those Advanced Output presets from an external web app. Select/apply the actual preset in Resolume's Advanced Output window when needed.
 
 ## Troubleshooting
 

@@ -85,6 +85,13 @@ export interface ResolumeOutputPreset {
   }>;
 }
 
+export interface ResolumeAdvancedOutputPreset {
+  name: string;
+  filePath: string;
+  folderPath: string;
+  updatedAt: string;
+}
+
 export interface ResolumeEffect {
   id: string;
   name: string;

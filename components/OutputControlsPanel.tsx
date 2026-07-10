@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
-import type { ResolumeOutputPreset, ResolumeParameter, ResolumeParameterValue } from "@/types/resolume";
+import type { ResolumeAdvancedOutputPreset, ResolumeOutputPreset, ResolumeParameter, ResolumeParameterValue } from "@/types/resolume";
 
 export function OutputControlsPanel() {
   const [parameters, setParameters] = useState<ResolumeParameter[]>([]);
   const [presets, setPresets] = useState<ResolumeOutputPreset[]>([]);
+  const [advancedOutputPresets, setAdvancedOutputPresets] = useState<ResolumeAdvancedOutputPreset[]>([]);
   const [presetName, setPresetName] = useState("");
   const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [selectedAdvancedPresetPath, setSelectedAdvancedPresetPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const { notify } = useToast();
@@ -22,12 +24,14 @@ export function OutputControlsPanel() {
   async function loadOutputState() {
     setLoading(true);
     try {
-      const [parametersResponse, presetsResponse] = await Promise.all([
+      const [parametersResponse, presetsResponse, advancedPresetsResponse] = await Promise.all([
         fetch("/api/resolume/output", { cache: "no-store" }),
-        fetch("/api/resolume/output-presets", { cache: "no-store" })
+        fetch("/api/resolume/output-presets", { cache: "no-store" }),
+        fetch("/api/resolume/advanced-output-presets", { cache: "no-store" })
       ]);
       const parametersData = (await parametersResponse.json()) as { parameters?: ResolumeParameter[]; error?: string };
       const presetsData = (await presetsResponse.json()) as { presets?: ResolumeOutputPreset[]; error?: string };
+      const advancedPresetsData = (await advancedPresetsResponse.json()) as { presets?: ResolumeAdvancedOutputPreset[]; error?: string };
 
       if (!parametersResponse.ok) {
         throw new Error(parametersData.error ?? "Could not load output controls");
@@ -37,10 +41,18 @@ export function OutputControlsPanel() {
         throw new Error(presetsData.error ?? "Could not load output presets");
       }
 
+      if (!advancedPresetsResponse.ok) {
+        throw new Error(advancedPresetsData.error ?? "Could not load Resolume advanced output presets");
+      }
+
       setParameters(parametersData.parameters ?? []);
       setPresets(presetsData.presets ?? []);
+      setAdvancedOutputPresets(advancedPresetsData.presets ?? []);
       if (!selectedPresetId && presetsData.presets?.[0]) {
         setSelectedPresetId(presetsData.presets[0].id);
+      }
+      if (!selectedAdvancedPresetPath && advancedPresetsData.presets?.[0]) {
+        setSelectedAdvancedPresetPath(advancedPresetsData.presets[0].filePath);
       }
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load output controls", "error");
@@ -207,6 +219,37 @@ export function OutputControlsPanel() {
         <button type="button" onClick={deletePreset} disabled={!selectedPresetId} className="min-h-14 rounded-2xl bg-rose-400/20 px-5 font-black text-rose-100 disabled:opacity-50">
           Delete
         </button>
+      </div>
+
+      <div className="mt-5 rounded-3xl border border-amber-300/20 bg-amber-300/10 p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+          <label className="block flex-1">
+            <span className="text-sm font-bold text-amber-100">Resolume-created Advanced Output preset files</span>
+            <select
+              value={selectedAdvancedPresetPath}
+              onChange={(event) => setSelectedAdvancedPresetPath(event.target.value)}
+              className="mt-2 min-h-14 w-full rounded-2xl bg-slate-950 px-4"
+            >
+              <option value="">No Resolume preset selected</option>
+              {advancedOutputPresets.map((preset) => (
+                <option key={preset.filePath} value={preset.filePath}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" onClick={loadOutputState} disabled={loading} className="min-h-14 rounded-2xl bg-white/10 px-5 font-black disabled:opacity-50">
+            Refresh Preset Files
+          </button>
+        </div>
+        {selectedAdvancedPresetPath ? (
+          <p className="mt-3 break-all text-xs text-amber-50/80">
+            Selected file: {selectedAdvancedPresetPath}
+          </p>
+        ) : null}
+        <p className="mt-3 text-xs text-amber-50/80">
+          These are `.xml` presets saved by Resolume in its Documents preset folders. Resolume's REST API does not expose reliable switching for these presets, so this dropdown is for retrieval/visibility. Select/apply the actual Advanced Output preset inside Resolume when needed.
+        </p>
       </div>
 
       {parameters.length === 0 ? (
