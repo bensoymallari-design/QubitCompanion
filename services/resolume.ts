@@ -796,8 +796,12 @@ function sourceUriVariants(source: ResolumeSource): string[] {
   }
 
   if (source.isNdi) {
-    variants.add(`ndi://${encodedName}`);
-    variants.add(`ndi:///${encodedName}`);
+    variants.add(`source:///video/${encodedName}`);
+    variants.add(`source:///video/NDI/${encodedName}`);
+    variants.add(`source:///sources/${encodedName}`);
+    variants.add(`source:///${encodedName}`);
+    variants.add(`source:///video/${name}`);
+    variants.add(`source:///video/NDI/${name}`);
     return Array.from(variants).filter(Boolean);
   }
 
