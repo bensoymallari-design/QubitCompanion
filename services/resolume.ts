@@ -172,6 +172,9 @@ export class ResolumeService {
     const bodies = sourceUriVariants(request.source);
     let lastError: unknown;
 
+    await this.clearClip({ layer: request.layer, clip: request.clip }).catch(() => undefined);
+    await delay(350);
+
     for (const body of bodies) {
       try {
         await this.request(endpoint, {

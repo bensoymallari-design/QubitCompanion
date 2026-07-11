@@ -248,6 +248,12 @@ export function NdiSourcePanel() {
 
     setLoading(true);
     try {
+      await fetch("/api/resolume/clear-clip", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ layer: selectedPreset.layer, clip: selectedPreset.clip })
+      }).catch(() => undefined);
+
       setLayer(selectedPreset.layer);
       setClip(selectedPreset.clip);
       setTrigger(selectedPreset.trigger);
