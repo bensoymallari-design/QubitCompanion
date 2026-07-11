@@ -19,6 +19,7 @@ export function NdiSourcePanel() {
   const [transformY, setTransformY] = useState("0");
   const [transformWidth, setTransformWidth] = useState("1920");
   const [transformHeight, setTransformHeight] = useState("1080");
+  const [transformOpacity, setTransformOpacity] = useState("100");
   const [compositionWidth, setCompositionWidth] = useState("1920");
   const [compositionHeight, setCompositionHeight] = useState("1080");
   const [trigger, setTrigger] = useState(true);
@@ -114,7 +115,7 @@ export function NdiSourcePanel() {
       }
 
       notify(data.message ?? "NDI source loaded", "success");
-      await applyTransformValues(currentTransformValues(), layer, clip, "NDI transform applied").catch((error) => {
+      await applyTransformValues(currentTransformValues(), layer, clip, "NDI transform applied", { scale100: true }).catch((error) => {
         notify(error instanceof Error ? error.message : "NDI loaded, but transform was not applied", "error");
       });
     } catch (error) {
@@ -279,7 +280,7 @@ export function NdiSourcePanel() {
         throw new Error(data.error ?? "Could not load NDI preset source");
       }
 
-      await applyTransformValues(selectedPreset.transform, selectedPreset.layer, selectedPreset.clip, `Applied NDI preset ${selectedPreset.name}`);
+      await applyTransformValues(selectedPreset.transform, selectedPreset.layer, selectedPreset.clip, `Applied NDI preset ${selectedPreset.name}`, { scale100: true });
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not apply NDI preset", "error");
     } finally {
@@ -317,7 +318,13 @@ export function NdiSourcePanel() {
     }
   }
 
-  async function applyTransformValues(values: NdiTransformValues, targetLayer: number, targetClip: number, successMessage: string) {
+  async function applyTransformValues(
+    values: NdiTransformValues,
+    targetLayer: number,
+    targetClip: number,
+    successMessage: string,
+    options: { scale100?: boolean } = {}
+  ) {
     const params = new URLSearchParams({ scope: "clip", layer: String(targetLayer), clip: String(targetClip) });
     const response = await fetch(`/api/resolume/parameters?${params.toString()}`, { cache: "no-store" });
     const data = (await response.json()) as { parameters?: ResolumeParameter[]; error?: string };
@@ -326,10 +333,15 @@ export function NdiSourcePanel() {
       throw new Error(data.error ?? "Could not read NDI transform controls");
     }
 
-    const updates = transformValueUpdates((data.parameters ?? []).filter((parameter) => parameter.group === "transform"), values);
+    const allParameters = data.parameters ?? [];
+    const updates = dedupeUpdates([
+      ...transformValueUpdates(allParameters.filter((parameter) => parameter.group === "transform"), values),
+      ...opacityValueUpdates(allParameters, values.opacity),
+      ...(options.scale100 ? scale100Updates(allParameters) : [])
+    ]);
 
     if (updates.length === 0) {
-      throw new Error("No matching X/Y/width/height transform parameters were found for this NDI clip.");
+      throw new Error("No matching transform, opacity, or scale parameters were found for this NDI clip.");
     }
 
     for (const update of updates) {
@@ -353,7 +365,8 @@ export function NdiSourcePanel() {
       x: numberOrUndefined(transformX),
       y: numberOrUndefined(transformY),
       width: numberOrUndefined(transformWidth),
-      height: numberOrUndefined(transformHeight)
+      height: numberOrUndefined(transformHeight),
+      opacity: numberOrUndefined(transformOpacity)
     };
   }
 
@@ -362,6 +375,7 @@ export function NdiSourcePanel() {
     setTransformY(String(values.y ?? 0));
     setTransformWidth(String(values.width ?? compositionWidth));
     setTransformHeight(String(values.height ?? compositionHeight));
+    setTransformOpacity(String(values.opacity ?? 100));
   }
 
   return (
@@ -487,7 +501,7 @@ export function NdiSourcePanel() {
 
       <div className="mt-5 rounded-3xl border border-sky-300/20 bg-sky-300/10 p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-          <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <label className="block">
               <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">X Position</span>
               <input
@@ -532,10 +546,21 @@ export function NdiSourcePanel() {
                 className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
               />
             </label>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Opacity %</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={transformOpacity}
+                onChange={(event) => setTransformOpacity(event.target.value)}
+                className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
+              />
+            </label>
           </div>
           <div className="grid gap-2 sm:grid-cols-5 xl:w-[46rem]">
             <button type="button" disabled={loading} onClick={applyManualTransform} className="min-h-12 rounded-2xl bg-emerald-300 px-4 font-black text-slate-950 disabled:opacity-50">
-              Apply X/Y/W/H
+              Apply Values
             </button>
             <button type="button" disabled={loading} onClick={() => applyTransformPreset("fit")} className="min-h-12 rounded-2xl bg-sky-300 px-4 font-black text-slate-950 disabled:opacity-50">
               Fit Size
@@ -552,7 +577,7 @@ export function NdiSourcePanel() {
           </div>
         </div>
         <p className="mt-3 text-xs text-slate-300">
-          Enter exact X/Y/width/height values and apply them to matching transform parameters on the selected NDI clip. Remove NDI clears the selected clip slot.
+          Enter exact X/Y/width/height/opacity values and apply them to matching parameters on the selected NDI clip. Loading or applying an NDI preset also resets scale to 100%. Remove NDI clears the selected clip slot.
         </p>
       </div>
 
@@ -624,6 +649,58 @@ function transformValueUpdates(parameters: ResolumeParameter[], values: NdiTrans
   }
 
   return updates;
+}
+
+function opacityValueUpdates(parameters: ResolumeParameter[], opacity: number | undefined) {
+  if (typeof opacity !== "number") {
+    return [];
+  }
+
+  return parameters
+    .filter((parameter) => {
+      const key = `${parameter.path} ${parameter.name}`.toLowerCase();
+      return /opacity|alpha/.test(key);
+    })
+    .map((parameter) => ({ parameter, value: opacityToParameterValue(parameter, opacity) }));
+}
+
+function scale100Updates(parameters: ResolumeParameter[]) {
+  return parameters
+    .filter((parameter) => {
+      const key = `${parameter.path} ${parameter.name}`.toLowerCase();
+      return /\b(scale|scale x|scale y)\b/.test(key);
+    })
+    .map((parameter) => ({ parameter, value: scaleOneValue(parameter) }));
+}
+
+function dedupeUpdates(updates: Array<{ parameter: ResolumeParameter; value: number }>) {
+  const seen = new Set<string>();
+  return updates.filter((update) => {
+    if (seen.has(update.parameter.id)) {
+      return false;
+    }
+    seen.add(update.parameter.id);
+    return true;
+  });
+}
+
+function opacityToParameterValue(parameter: ResolumeParameter, opacityPercent: number): number {
+  const clamped = Math.max(0, Math.min(100, opacityPercent));
+
+  if (typeof parameter.max === "number") {
+    if (parameter.max <= 1) {
+      return clamped / 100;
+    }
+
+    if (parameter.max === 100) {
+      return clamped;
+    }
+
+    return (clamped / 100) * parameter.max;
+  }
+
+  const current = typeof parameter.value === "number" ? parameter.value : Number(parameter.value);
+  return Number.isFinite(current) && current <= 1 ? clamped / 100 : clamped;
 }
 
 function numberOrUndefined(value: string): number | undefined {

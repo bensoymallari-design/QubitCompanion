@@ -57,6 +57,7 @@ export interface NdiTransformValues {
   y?: number;
   width?: number;
   height?: number;
+  opacity?: number;
 }
 
 export interface NdiPreset {
