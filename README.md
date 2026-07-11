@@ -293,16 +293,16 @@ The NDI panel also includes:
 
 - **NDI Presets**
 - **Composition Width / Height** inputs
-- **X Position / Y Position / Width / Height** inputs
+- **X Position / Y Position / Width / Height / Opacity** inputs
 - **Apply X/Y/W/H**
 - **Fit Size**
 - **Center**
 - **Scale 100%**
 - **Remove NDI**
 
-NDI presets save the selected NDI source, layer, clip, trigger option, composition size, and X/Y/width/height values to `storage/ndi-presets.json`. Applying a preset reloads the NDI source into the saved layer/clip and reapplies the saved transform values. Delete removes presets you no longer need.
+NDI presets save the selected NDI source, layer, clip, trigger option, composition size, and X/Y/width/height/opacity values to `storage/ndi-presets.json`. Applying a preset reloads the NDI source into the saved layer/clip, resets scale to 100%, and reapplies the saved transform/opacity values. Loading an NDI source also resets scale to 100% so the image does not come in oversized. Delete removes presets you no longer need.
 
-Fit/Center/Scale and Apply X/Y/W/H update matching transform parameters on the selected clip when Resolume exposes those controls. Remove NDI clears the selected clip slot.
+Fit/Center/Scale and Apply Values update matching transform/opacity parameters on the selected clip when Resolume exposes those controls. Remove NDI clears the selected clip slot.
 
 ## Troubleshooting
 
