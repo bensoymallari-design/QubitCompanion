@@ -8,24 +8,28 @@ import {
   DATABASE_PATH,
   MEDIA_KIND_BY_EXTENSION,
   MAX_UPLOAD_BYTES,
+  NDI_PRESETS_PATH,
   SETTINGS_PATH,
   SUPPORTED_EXTENSIONS,
   SUPPORTED_MIME_TYPES,
   THUMBNAILS_DIR,
   UPLOADS_DIR
 } from "@/lib/constants";
-import { databasePath, resolveFromRoot, settingsPath, thumbnailsPath, uploadsPath } from "@/lib/paths";
+import { databasePath, ndiPresetsPath, resolveFromRoot, settingsPath, thumbnailsPath, uploadsPath } from "@/lib/paths";
 import type { MediaDatabase, MediaExtension, MediaFile, MediaKind, MediaListQuery } from "@/types/media";
+import type { NdiPreset } from "@/types/resolume";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/types/settings";
 import { safeFilename } from "@/utils/format";
 
 const EMPTY_DATABASE: MediaDatabase = { files: [] };
+const EMPTY_NDI_PRESETS: NdiPreset[] = [];
 
 export async function ensureStorage(): Promise<void> {
   await fs.mkdir(uploadsPath(), { recursive: true });
   await fs.mkdir(thumbnailsPath(), { recursive: true });
   await ensureJsonFile(databasePath(), EMPTY_DATABASE);
   await ensureJsonFile(settingsPath(), DEFAULT_SETTINGS);
+  await ensureJsonFile(ndiPresetsPath(), EMPTY_NDI_PRESETS);
 }
 
 async function ensureJsonFile<T>(filePath: string, fallback: T): Promise<void> {
@@ -81,6 +85,31 @@ export async function writeSettings(settings: AppSettings): Promise<AppSettings>
   await ensureWritableUploadFolder(normalized.uploadFolder);
   await writeJson(settingsPath(), normalized);
   return normalized;
+}
+
+export async function readNdiPresets(): Promise<NdiPreset[]> {
+  return readJson<NdiPreset[]>(ndiPresetsPath(), EMPTY_NDI_PRESETS);
+}
+
+export async function writeNdiPresets(presets: NdiPreset[]): Promise<void> {
+  await writeJson(ndiPresetsPath(), presets);
+}
+
+export async function saveNdiPreset(preset: Omit<NdiPreset, "id" | "createdAt">): Promise<NdiPreset> {
+  const presets = await readNdiPresets();
+  const next: NdiPreset = {
+    ...preset,
+    id: randomUUID(),
+    createdAt: new Date().toISOString()
+  };
+  presets.unshift(next);
+  await writeNdiPresets(presets);
+  return next;
+}
+
+export async function deleteNdiPreset(id: string): Promise<void> {
+  const presets = await readNdiPresets();
+  await writeNdiPresets(presets.filter((preset) => preset.id !== id));
 }
 
 export function extensionForName(filename: string): MediaExtension | null {
@@ -491,4 +520,4 @@ function mimeForExtension(extension: MediaExtension): string {
   }
 }
 
-export { DATABASE_PATH, SETTINGS_PATH, THUMBNAILS_DIR, UPLOADS_DIR };
+export { DATABASE_PATH, NDI_PRESETS_PATH, SETTINGS_PATH, THUMBNAILS_DIR, UPLOADS_DIR };
