@@ -291,13 +291,18 @@ The app sends source names to Resolume through the clip `open` API. The NDI stre
 
 The NDI panel also includes:
 
+- **NDI Presets**
 - **Composition Width / Height** inputs
+- **X Position / Y Position / Width / Height** inputs
+- **Apply X/Y/W/H**
 - **Fit Size**
 - **Center**
 - **Scale 100%**
 - **Remove NDI**
 
-Fit/Center/Scale update matching transform parameters on the selected clip when Resolume exposes those controls. Remove NDI clears the selected clip slot.
+NDI presets save the selected NDI source, layer, clip, trigger option, composition size, and X/Y/width/height values to `storage/ndi-presets.json`. Applying a preset reloads the NDI source into the saved layer/clip and reapplies the saved transform values. Delete removes presets you no longer need.
+
+Fit/Center/Scale and Apply X/Y/W/H update matching transform parameters on the selected clip when Resolume exposes those controls. Remove NDI clears the selected clip slot.
 
 ## Troubleshooting
 
