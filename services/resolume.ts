@@ -783,12 +783,12 @@ function walkSources(value: unknown, category: string, sources: ResolumeSource[]
 function sourceUriVariants(source: ResolumeSource): string[] {
   const variants = new Set<string>();
   const name = source.name.trim();
-  const encodedName = encodeURIComponent(name);
+  const encodedName = encodeUriComponentStrict(name);
   const rawPath = source.path?.trim();
 
   if (rawPath) {
     variants.add(rawPath);
-    variants.add(encodeURI(rawPath));
+    variants.add(encodeUriStrict(rawPath));
   }
 
   if (source.uri) {
@@ -796,8 +796,9 @@ function sourceUriVariants(source: ResolumeSource): string[] {
   }
 
   if (source.isNdi) {
-    variants.add(`ndi://${name}`);
     variants.add(`ndi://${encodedName}`);
+    variants.add(`ndi:///${encodedName}`);
+    return Array.from(variants).filter(Boolean);
   }
 
   if (source.category) {
@@ -810,6 +811,14 @@ function sourceUriVariants(source: ResolumeSource): string[] {
   variants.add(name);
 
   return Array.from(variants).filter(Boolean);
+}
+
+function encodeUriComponentStrict(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function encodeUriStrict(value: string): string {
+  return encodeURI(value).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
 function humanize(value: string): string {
