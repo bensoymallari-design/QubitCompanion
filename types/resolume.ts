@@ -52,6 +52,26 @@ export interface ResolumeSourceLoadRequest {
   trigger?: boolean;
 }
 
+export interface NdiTransformValues {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface NdiPreset {
+  id: string;
+  name: string;
+  source: ResolumeSource;
+  layer: number;
+  clip: number;
+  trigger: boolean;
+  compositionWidth?: number;
+  compositionHeight?: number;
+  transform: NdiTransformValues;
+  createdAt: string;
+}
+
 export type ResolumeControlScope = "composition" | "layer" | "clip";
 
 export type ResolumeParameterValue = string | number | boolean | null;

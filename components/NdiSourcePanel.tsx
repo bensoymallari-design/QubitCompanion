@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
-import type { ResolumeClip, ResolumeLayer, ResolumeParameter, ResolumeSource } from "@/types/resolume";
+import type { NdiPreset, NdiTransformValues, ResolumeClip, ResolumeLayer, ResolumeParameter, ResolumeSource } from "@/types/resolume";
 
 export function NdiSourcePanel() {
   const [sources, setSources] = useState<ResolumeSource[]>([]);
@@ -10,8 +10,15 @@ export function NdiSourcePanel() {
   const [clips, setClips] = useState<ResolumeClip[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [manualName, setManualName] = useState("");
+  const [ndiPresets, setNdiPresets] = useState<NdiPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [presetName, setPresetName] = useState("");
   const [layer, setLayer] = useState(1);
   const [clip, setClip] = useState(1);
+  const [transformX, setTransformX] = useState("0");
+  const [transformY, setTransformY] = useState("0");
+  const [transformWidth, setTransformWidth] = useState("1920");
+  const [transformHeight, setTransformHeight] = useState("1080");
   const [compositionWidth, setCompositionWidth] = useState("1920");
   const [compositionHeight, setCompositionHeight] = useState("1080");
   const [trigger, setTrigger] = useState(true);
@@ -20,11 +27,13 @@ export function NdiSourcePanel() {
   const { notify } = useToast();
 
   const selectedSource = useMemo(() => sources.find((source) => source.id === selectedSourceId), [selectedSourceId, sources]);
+  const selectedPreset = useMemo(() => ndiPresets.find((preset) => preset.id === selectedPresetId), [ndiPresets, selectedPresetId]);
   const filteredClips = clips.filter((item) => Number(item.layerId) === layer);
 
   useEffect(() => {
     loadTargets();
     loadSources();
+    loadNdiPresets();
   }, []);
 
   useEffect(() => {
@@ -65,6 +74,24 @@ export function NdiSourcePanel() {
     }
   }
 
+  async function loadNdiPresets() {
+    try {
+      const response = await fetch("/api/resolume/ndi-presets", { cache: "no-store" });
+      const data = (await response.json()) as { presets?: NdiPreset[]; error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not load NDI presets");
+      }
+
+      setNdiPresets(data.presets ?? []);
+      if (!selectedPresetId && data.presets?.[0]) {
+        setSelectedPresetId(data.presets[0].id);
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not load NDI presets", "error");
+    }
+  }
+
   async function loadSource() {
     const source = selectedSource ?? manualSource(manualName);
 
@@ -87,6 +114,9 @@ export function NdiSourcePanel() {
       }
 
       notify(data.message ?? "NDI source loaded", "success");
+      await applyTransformValues(currentTransformValues(), layer, clip, "NDI transform applied").catch((error) => {
+        notify(error instanceof Error ? error.message : "NDI loaded, but transform was not applied", "error");
+      });
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load NDI source", "error");
     } finally {
@@ -155,6 +185,179 @@ export function NdiSourcePanel() {
     }
   }
 
+  async function applyManualTransform() {
+    setLoading(true);
+    try {
+      await applyTransformValues(currentTransformValues(), layer, clip, "NDI transform updated");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not update NDI transform", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveCurrentNdiPreset() {
+    const source = selectedSource ?? manualSource(manualName);
+    const name = presetName.trim();
+
+    if (!source) {
+      notify("Select an NDI source or enter a manual NDI source name before saving.", "error");
+      return;
+    }
+
+    if (!name) {
+      notify("Enter an NDI preset name first.", "error");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/resolume/ndi-presets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name,
+          source,
+          layer,
+          clip,
+          trigger,
+          compositionWidth: numberOrUndefined(compositionWidth),
+          compositionHeight: numberOrUndefined(compositionHeight),
+          transform: currentTransformValues()
+        })
+      });
+      const data = (await response.json()) as { preset?: NdiPreset; error?: string };
+
+      if (!response.ok || !data.preset) {
+        throw new Error(data.error ?? "Could not save NDI preset");
+      }
+
+      setNdiPresets((current) => [data.preset as NdiPreset, ...current]);
+      setSelectedPresetId(data.preset.id);
+      setPresetName("");
+      notify("NDI preset saved", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not save NDI preset", "error");
+    }
+  }
+
+  async function applySelectedNdiPreset() {
+    if (!selectedPreset) {
+      notify("Select an NDI preset first.", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      setLayer(selectedPreset.layer);
+      setClip(selectedPreset.clip);
+      setTrigger(selectedPreset.trigger);
+      setCompositionWidth(String(selectedPreset.compositionWidth ?? compositionWidth));
+      setCompositionHeight(String(selectedPreset.compositionHeight ?? compositionHeight));
+      setTransformInputs(selectedPreset.transform);
+      setManualName(selectedPreset.source.name);
+      setSelectedSourceId("");
+
+      const response = await fetch("/api/resolume/source-load", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          source: selectedPreset.source,
+          layer: selectedPreset.layer,
+          clip: selectedPreset.clip,
+          trigger: selectedPreset.trigger
+        })
+      });
+      const data = (await response.json()) as { error?: string; message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not load NDI preset source");
+      }
+
+      await applyTransformValues(selectedPreset.transform, selectedPreset.layer, selectedPreset.clip, `Applied NDI preset ${selectedPreset.name}`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not apply NDI preset", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteSelectedNdiPreset() {
+    if (!selectedPreset) {
+      notify("Select an NDI preset first.", "error");
+      return;
+    }
+
+    if (!window.confirm(`Delete NDI preset "${selectedPreset.name}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/resolume/ndi-presets", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: selectedPreset.id })
+      });
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not delete NDI preset");
+      }
+
+      setNdiPresets((current) => current.filter((preset) => preset.id !== selectedPreset.id));
+      setSelectedPresetId("");
+      notify("NDI preset deleted", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not delete NDI preset", "error");
+    }
+  }
+
+  async function applyTransformValues(values: NdiTransformValues, targetLayer: number, targetClip: number, successMessage: string) {
+    const params = new URLSearchParams({ scope: "clip", layer: String(targetLayer), clip: String(targetClip) });
+    const response = await fetch(`/api/resolume/parameters?${params.toString()}`, { cache: "no-store" });
+    const data = (await response.json()) as { parameters?: ResolumeParameter[]; error?: string };
+
+    if (!response.ok) {
+      throw new Error(data.error ?? "Could not read NDI transform controls");
+    }
+
+    const updates = transformValueUpdates((data.parameters ?? []).filter((parameter) => parameter.group === "transform"), values);
+
+    if (updates.length === 0) {
+      throw new Error("No matching X/Y/width/height transform parameters were found for this NDI clip.");
+    }
+
+    for (const update of updates) {
+      const updateResponse = await fetch("/api/resolume/parameters", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: update.parameter.id, value: update.value })
+      });
+      const updateData = (await updateResponse.json()) as { error?: string };
+
+      if (!updateResponse.ok) {
+        throw new Error(updateData.error ?? `Could not update ${update.parameter.name}`);
+      }
+    }
+
+    notify(successMessage, "success");
+  }
+
+  function currentTransformValues(): NdiTransformValues {
+    return {
+      x: numberOrUndefined(transformX),
+      y: numberOrUndefined(transformY),
+      width: numberOrUndefined(transformWidth),
+      height: numberOrUndefined(transformHeight)
+    };
+  }
+
+  function setTransformInputs(values: NdiTransformValues) {
+    setTransformX(String(values.x ?? 0));
+    setTransformY(String(values.y ?? 0));
+    setTransformWidth(String(values.width ?? compositionWidth));
+    setTransformHeight(String(values.height ?? compositionHeight));
+  }
+
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/5 p-5 md:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -206,6 +409,36 @@ export function NdiSourcePanel() {
         </label>
       </div>
 
+      <div className="mt-5 rounded-3xl border border-emerald-300/20 bg-emerald-300/10 p-4">
+        <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-200">NDI Presets</p>
+        <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_auto_1fr_auto_auto]">
+          <input
+            value={presetName}
+            onChange={(event) => setPresetName(event.target.value)}
+            placeholder="Preset name, e.g. Lobby NDI Fullscreen"
+            className="min-h-12 rounded-2xl bg-slate-950 px-4"
+          />
+          <button type="button" disabled={loading} onClick={saveCurrentNdiPreset} className="min-h-12 rounded-2xl bg-emerald-300 px-5 font-black text-slate-950 disabled:opacity-50">
+            Save NDI Preset
+          </button>
+          <select value={selectedPresetId} onChange={(event) => setSelectedPresetId(event.target.value)} className="min-h-12 rounded-2xl bg-slate-950 px-4">
+            <option value="">Select saved NDI preset</option>
+            {ndiPresets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" disabled={loading || !selectedPresetId} onClick={applySelectedNdiPreset} className="min-h-12 rounded-2xl bg-sky-300 px-5 font-black text-slate-950 disabled:opacity-50">
+            Apply Preset
+          </button>
+          <button type="button" disabled={!selectedPresetId} onClick={deleteSelectedNdiPreset} className="min-h-12 rounded-2xl bg-rose-400/20 px-5 font-black text-rose-100 disabled:opacity-50">
+            Delete
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-emerald-50/80">Presets save the NDI source, layer, clip, trigger option, composition size, and X/Y/width/height transform values.</p>
+      </div>
+
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <label className="block">
           <span className="text-sm font-bold text-slate-300">Layer</span>
@@ -248,29 +481,56 @@ export function NdiSourcePanel() {
 
       <div className="mt-5 rounded-3xl border border-sky-300/20 bg-sky-300/10 p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-          <div className="grid flex-1 gap-3 sm:grid-cols-2">
+          <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Composition Width</span>
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">X Position</span>
               <input
                 type="number"
-                min="1"
-                value={compositionWidth}
-                onChange={(event) => setCompositionWidth(event.target.value)}
+                value={transformX}
+                onChange={(event) => setTransformX(event.target.value)}
                 className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Composition Height</span>
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Y Position</span>
+              <input
+                type="number"
+                value={transformY}
+                onChange={(event) => setTransformY(event.target.value)}
+                className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Width</span>
               <input
                 type="number"
                 min="1"
-                value={compositionHeight}
-                onChange={(event) => setCompositionHeight(event.target.value)}
+                value={transformWidth}
+                onChange={(event) => {
+                  setTransformWidth(event.target.value);
+                  setCompositionWidth(event.target.value);
+                }}
+                className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-200">Height</span>
+              <input
+                type="number"
+                min="1"
+                value={transformHeight}
+                onChange={(event) => {
+                  setTransformHeight(event.target.value);
+                  setCompositionHeight(event.target.value);
+                }}
                 className="mt-2 min-h-12 w-full rounded-2xl bg-slate-950 px-4 text-lg font-bold"
               />
             </label>
           </div>
-          <div className="grid gap-2 sm:grid-cols-4 xl:w-[38rem]">
+          <div className="grid gap-2 sm:grid-cols-5 xl:w-[46rem]">
+            <button type="button" disabled={loading} onClick={applyManualTransform} className="min-h-12 rounded-2xl bg-emerald-300 px-4 font-black text-slate-950 disabled:opacity-50">
+              Apply X/Y/W/H
+            </button>
             <button type="button" disabled={loading} onClick={() => applyTransformPreset("fit")} className="min-h-12 rounded-2xl bg-sky-300 px-4 font-black text-slate-950 disabled:opacity-50">
               Fit Size
             </button>
@@ -286,7 +546,7 @@ export function NdiSourcePanel() {
           </div>
         </div>
         <p className="mt-3 text-xs text-slate-300">
-          Fit/Center/Scale update matching transform parameters on the selected NDI clip. Remove NDI clears the selected clip slot.
+          Enter exact X/Y/width/height values and apply them to matching transform parameters on the selected NDI clip. Remove NDI clears the selected clip slot.
         </p>
       </div>
 
@@ -329,6 +589,40 @@ function transformPresetUpdates(parameters: ResolumeParameter[], preset: "fit" |
   }
 
   return updates;
+}
+
+function transformValueUpdates(parameters: ResolumeParameter[], values: NdiTransformValues) {
+  const updates: Array<{ parameter: ResolumeParameter; value: number }> = [];
+
+  for (const parameter of parameters) {
+    const key = `${parameter.path} ${parameter.name}`.toLowerCase();
+
+    if (typeof values.x === "number" && /(position x|pos x|translate x|anchor x)/.test(key)) {
+      updates.push({ parameter, value: values.x });
+      continue;
+    }
+
+    if (typeof values.y === "number" && /(position y|pos y|translate y|anchor y)/.test(key)) {
+      updates.push({ parameter, value: values.y });
+      continue;
+    }
+
+    if (typeof values.width === "number" && /\b(width|size x|resolution x|w)\b/.test(key)) {
+      updates.push({ parameter, value: values.width });
+      continue;
+    }
+
+    if (typeof values.height === "number" && /\b(height|size y|resolution y|h)\b/.test(key)) {
+      updates.push({ parameter, value: values.height });
+    }
+  }
+
+  return updates;
+}
+
+function numberOrUndefined(value: string): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function scaleOneValue(parameter: ResolumeParameter): number {
