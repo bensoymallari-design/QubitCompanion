@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CollapsiblePanel } from "@/components/CollapsiblePanel";
 import { useToast } from "@/components/ToastProvider";
 import type { NdiPreset, NdiTransformValues, ResolumeClip, ResolumeLayer, ResolumeParameter, ResolumeSource } from "@/types/resolume";
 
@@ -379,11 +380,14 @@ export function NdiSourcePanel() {
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/5 p-5 md:p-6">
+    <CollapsiblePanel
+      eyebrow="NDI Sources"
+      title="Load network video into Resolume"
+      description="Select or type an NDI source, choose a layer/clip, and save reusable transform presets."
+      defaultOpen={false}
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.35em] text-sky-300">NDI Sources</p>
-          <h2 className="mt-2 text-3xl font-black">Load network video into Resolume</h2>
           <p className="mt-2 max-w-3xl text-slate-300">
             Start OBS/NDI on the same LAN, refresh sources, then choose a layer and clip. The app asks Resolume on this PC to open the NDI source.
           </p>
@@ -586,7 +590,7 @@ export function NdiSourcePanel() {
           No NDI sources were reported by Resolume yet. Make sure the sender is active on the LAN and visible in Resolume's Sources panel, then refresh.
         </p>
       )}
-    </section>
+    </CollapsiblePanel>
   );
 }
 
