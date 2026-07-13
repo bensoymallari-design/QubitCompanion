@@ -221,6 +221,8 @@ Notes:
 
 - Buttons and controls use large hit areas.
 - Media grid is responsive for tablets and touch displays.
+- Media page sections are collapsible so operators can keep NDI, upload, or library controls closed when not in use.
+- Buttons highlight on hover/focus to make touchpad and mouse operation clearer.
 - Keyboard shortcuts in the media page:
   - `U`: jump to upload
   - `R`: refresh
