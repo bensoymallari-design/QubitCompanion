@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { CollapsiblePanel } from "@/components/CollapsiblePanel";
 import { useToast } from "@/components/ToastProvider";
 import type { NdiPreset, NdiTransformValues, ResolumeClip, ResolumeLayer, ResolumeParameter, ResolumeSource } from "@/types/resolume";
+import type { AppSettings, ResolumeTarget } from "@/types/settings";
 
 export function NdiSourcePanel() {
   const [sources, setSources] = useState<ResolumeSource[]>([]);
   const [layers, setLayers] = useState<ResolumeLayer[]>([]);
   const [clips, setClips] = useState<ResolumeClip[]>([]);
+  const [targets, setTargets] = useState<ResolumeTarget[]>([]);
+  const [targetId, setTargetId] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [manualName, setManualName] = useState("");
   const [ndiPresets, setNdiPresets] = useState<NdiPreset[]>([]);
@@ -34,9 +37,15 @@ export function NdiSourcePanel() {
 
   useEffect(() => {
     loadTargets();
+    loadTargetSettings();
     loadSources();
     loadNdiPresets();
   }, []);
+
+  useEffect(() => {
+    loadTargets();
+    loadSources();
+  }, [targetId]);
 
   useEffect(() => {
     setClip(1);
@@ -44,7 +53,8 @@ export function NdiSourcePanel() {
 
   async function loadTargets() {
     try {
-      const [layersResponse, clipsResponse] = await Promise.all([fetch("/api/resolume/layers"), fetch("/api/resolume/clips")]);
+      const params = targetId ? `?targetId=${encodeURIComponent(targetId)}` : "";
+      const [layersResponse, clipsResponse] = await Promise.all([fetch(`/api/resolume/layers${params}`), fetch(`/api/resolume/clips${params}`)]);
       const layersData = (await layersResponse.json()) as { layers?: ResolumeLayer[] };
       const clipsData = (await clipsResponse.json()) as { clips?: ResolumeClip[] };
       setLayers(layersData.layers ?? []);
@@ -55,10 +65,26 @@ export function NdiSourcePanel() {
     }
   }
 
+  async function loadTargetSettings() {
+    try {
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      const data = (await response.json()) as { settings?: AppSettings };
+      const nextTargets = data.settings?.resolumeTargets ?? [];
+      setTargets(nextTargets);
+      setTargetId((current) => current || nextTargets[0]?.id || "");
+    } catch {
+      setTargets([]);
+    }
+  }
+
   async function loadSources() {
     setLoadingSources(true);
     try {
-      const response = await fetch("/api/resolume/sources?ndi=true", { cache: "no-store" });
+      const params = new URLSearchParams({ ndi: "true" });
+      if (targetId) {
+        params.set("targetId", targetId);
+      }
+      const response = await fetch(`/api/resolume/sources?${params.toString()}`, { cache: "no-store" });
       const data = (await response.json()) as { sources?: ResolumeSource[]; error?: string };
 
       if (!response.ok) {
@@ -107,7 +133,7 @@ export function NdiSourcePanel() {
       const response = await fetch("/api/resolume/source-load", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source, layer, clip, trigger })
+        body: JSON.stringify({ source, layer, clip, trigger, targetId })
       });
       const data = (await response.json()) as { error?: string; message?: string };
 
@@ -132,7 +158,7 @@ export function NdiSourcePanel() {
       const response = await fetch("/api/resolume/clear-clip", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ layer, clip })
+        body: JSON.stringify({ layer, clip, targetId })
       });
       const data = (await response.json()) as { error?: string; message?: string };
 
@@ -152,6 +178,9 @@ export function NdiSourcePanel() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ scope: "clip", layer: String(layer), clip: String(clip) });
+      if (targetId) {
+        params.set("targetId", targetId);
+      }
       const response = await fetch(`/api/resolume/parameters?${params.toString()}`, { cache: "no-store" });
       const data = (await response.json()) as { parameters?: ResolumeParameter[]; error?: string };
 
@@ -170,7 +199,7 @@ export function NdiSourcePanel() {
         const updateResponse = await fetch("/api/resolume/parameters", {
           method: "PUT",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: update.parameter.id, value: update.value })
+          body: JSON.stringify({ id: update.parameter.id, value: update.value, targetId })
         });
         const updateData = (await updateResponse.json()) as { error?: string };
 
@@ -219,6 +248,7 @@ export function NdiSourcePanel() {
         body: JSON.stringify({
           name,
           source,
+          targetId,
           layer,
           clip,
           trigger,
@@ -253,11 +283,12 @@ export function NdiSourcePanel() {
       await fetch("/api/resolume/clear-clip", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ layer: selectedPreset.layer, clip: selectedPreset.clip })
+        body: JSON.stringify({ layer: selectedPreset.layer, clip: selectedPreset.clip, targetId: selectedPreset.targetId ?? targetId })
       }).catch(() => undefined);
 
       setLayer(selectedPreset.layer);
       setClip(selectedPreset.clip);
+      setTargetId(selectedPreset.targetId ?? targetId);
       setTrigger(selectedPreset.trigger);
       setCompositionWidth(String(selectedPreset.compositionWidth ?? compositionWidth));
       setCompositionHeight(String(selectedPreset.compositionHeight ?? compositionHeight));
@@ -272,7 +303,8 @@ export function NdiSourcePanel() {
           source: selectedPreset.source,
           layer: selectedPreset.layer,
           clip: selectedPreset.clip,
-          trigger: selectedPreset.trigger
+          trigger: selectedPreset.trigger,
+          targetId: selectedPreset.targetId ?? targetId
         })
       });
       const data = (await response.json()) as { error?: string; message?: string };
@@ -281,7 +313,7 @@ export function NdiSourcePanel() {
         throw new Error(data.error ?? "Could not load NDI preset source");
       }
 
-      await applyTransformValues(selectedPreset.transform, selectedPreset.layer, selectedPreset.clip, `Applied NDI preset ${selectedPreset.name}`, { scale100: true });
+      await applyTransformValues(selectedPreset.transform, selectedPreset.layer, selectedPreset.clip, `Applied NDI preset ${selectedPreset.name}`, { scale100: true, targetId: selectedPreset.targetId ?? targetId });
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not apply NDI preset", "error");
     } finally {
@@ -324,9 +356,13 @@ export function NdiSourcePanel() {
     targetLayer: number,
     targetClip: number,
     successMessage: string,
-    options: { scale100?: boolean } = {}
+    options: { scale100?: boolean; targetId?: string } = {}
   ) {
     const params = new URLSearchParams({ scope: "clip", layer: String(targetLayer), clip: String(targetClip) });
+    const resolvedTargetId = options.targetId ?? targetId;
+    if (resolvedTargetId) {
+      params.set("targetId", resolvedTargetId);
+    }
     const response = await fetch(`/api/resolume/parameters?${params.toString()}`, { cache: "no-store" });
     const data = (await response.json()) as { parameters?: ResolumeParameter[]; error?: string };
 
@@ -349,7 +385,7 @@ export function NdiSourcePanel() {
       const updateResponse = await fetch("/api/resolume/parameters", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: update.parameter.id, value: update.value })
+        body: JSON.stringify({ id: update.parameter.id, value: update.value, targetId: resolvedTargetId })
       });
       const updateData = (await updateResponse.json()) as { error?: string };
 
@@ -398,6 +434,16 @@ export function NdiSourcePanel() {
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr_auto]">
+        <label className="block xl:col-span-3">
+          <span className="text-sm font-bold text-slate-300">Resolume Target</span>
+          <select value={targetId} onChange={(event) => setTargetId(event.target.value)} className="mt-2 min-h-14 w-full rounded-2xl bg-slate-950 px-4">
+            {targets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.name} - {target.ip}:{target.port}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="block">
           <span className="text-sm font-bold text-slate-300">Available NDI Source</span>
           <select

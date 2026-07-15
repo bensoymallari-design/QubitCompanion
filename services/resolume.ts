@@ -26,8 +26,13 @@ export class ResolumeService {
   }
 
   static async fromSettings(): Promise<ResolumeService> {
+    return ResolumeService.forTarget();
+  }
+
+  static async forTarget(targetId?: string | null): Promise<ResolumeService> {
     const settings = await readSettings();
-    return new ResolumeService(settings.resolumeIp, settings.resolumePort);
+    const target = settings.resolumeTargets.find((item) => item.id === targetId) ?? settings.resolumeTargets[0];
+    return new ResolumeService(target.ip, target.port);
   }
 
   async status(): Promise<ResolumeStatus> {

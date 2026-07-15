@@ -109,6 +109,27 @@ http://127.0.0.1:8080/api/v1
 
 If you control Resolume from another computer, keep Qubit Companion running on the Resolume PC and leave the Resolume IP set to `127.0.0.1`.
 
+## Multiple Resolume targets
+
+Open **Settings** and use **Resolume Targets** to add every Resolume Arena machine you want to control.
+
+Each target has:
+
+- Name
+- IP address
+- Port
+
+The first target is the default. When sending uploaded media or loading NDI sources, choose the **Resolume Target** dropdown to decide which Arena machine receives the command.
+
+Requirements for remote Resolume targets:
+
+- Resolume Webserver/REST API enabled on that machine
+- Windows Firewall allows Resolume's API port
+- The target IP/port is reachable from the PC running Qubit Companion
+- Media files loaded from disk must exist on the machine running that Resolume instance, or be reachable from it via the same path/share
+
+For best reliability with uploaded files, run Qubit Companion on the same PC as the Resolume instance you are sending local files to. NDI sources can be network-based as long as the selected Resolume target can see them.
+
 ## API routes
 
 - `POST /api/upload`
