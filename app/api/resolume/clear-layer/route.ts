@@ -6,13 +6,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { layer?: number };
+    const body = (await request.json()) as { layer?: number; targetId?: string };
 
     if (!body.layer) {
       return jsonError(new Error("layer is required"), 400);
     }
 
-    const service = await ResolumeService.fromSettings();
+    const service = await ResolumeService.forTarget(body.targetId);
     return jsonOk(await service.clearLayer(body.layer));
   } catch (error) {
     return jsonError(error, 503);

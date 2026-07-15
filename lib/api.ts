@@ -25,3 +25,8 @@ export function parseNumber(value: string | null): number | undefined {
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
+
+export function targetIdFromRequest(request: Request): string | undefined {
+  const url = new URL(request.url);
+  return url.searchParams.get("targetId") ?? undefined;
+}

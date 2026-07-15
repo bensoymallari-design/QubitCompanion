@@ -7,6 +7,7 @@ import type { ResolumeControlScope, ResolumeEffect, ResolumeParameter, ResolumeP
 interface ResolumeAdvancedControlsProps {
   layer: number;
   clip: number;
+  targetId?: string;
 }
 
 const GROUP_LABELS: Record<ResolumeParameter["group"], string> = {
@@ -17,7 +18,7 @@ const GROUP_LABELS: Record<ResolumeParameter["group"], string> = {
   other: "Other Parameters"
 };
 
-export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedControlsProps) {
+export function ResolumeAdvancedControls({ layer, clip, targetId }: ResolumeAdvancedControlsProps) {
   const [scope, setScope] = useState<ResolumeControlScope>("clip");
   const [parameters, setParameters] = useState<ResolumeParameter[]>([]);
   const [effects, setEffects] = useState<ResolumeEffect[]>([]);
@@ -45,6 +46,9 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
         layer: String(layer),
         clip: String(clip)
       });
+      if (targetId) {
+        params.set("targetId", targetId);
+      }
       const response = await fetch(`/api/resolume/parameters?${params.toString()}`, { cache: "no-store" });
       const data = (await response.json()) as { parameters?: ResolumeParameter[]; error?: string };
 
@@ -59,7 +63,7 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
     } finally {
       setLoading(false);
     }
-  }, [clip, layer, notify, scope]);
+  }, [clip, layer, notify, scope, targetId]);
 
   useEffect(() => {
     loadParameters();
@@ -68,7 +72,8 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
   useEffect(() => {
     async function loadEffects() {
       try {
-        const response = await fetch("/api/resolume/effects", { cache: "no-store" });
+        const params = targetId ? `?targetId=${encodeURIComponent(targetId)}` : "";
+        const response = await fetch(`/api/resolume/effects${params}`, { cache: "no-store" });
         const data = (await response.json()) as { effects?: ResolumeEffect[] };
         setEffects(data.effects ?? []);
       } catch {
@@ -77,7 +82,7 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
     }
 
     loadEffects();
-  }, []);
+  }, [targetId]);
 
   const grouped = useMemo(() => {
     return parameters.reduce<Record<ResolumeParameter["group"], ResolumeParameter[]>>(
@@ -95,7 +100,7 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
       const response = await fetch("/api/resolume/parameters", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: parameter.id, value })
+        body: JSON.stringify({ id: parameter.id, value, targetId })
       });
       const data = (await response.json()) as { error?: string };
 
@@ -122,7 +127,7 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
       const response = await fetch("/api/resolume/effects", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scope, layer, clip, effect })
+        body: JSON.stringify({ scope, layer, clip, effect, targetId })
       });
       const data = (await response.json()) as { error?: string; message?: string };
 
@@ -143,7 +148,7 @@ export function ResolumeAdvancedControls({ layer, clip }: ResolumeAdvancedContro
       const response = await fetch("/api/resolume/effects", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scope, layer, clip, effectIndex: Number(removeIndex) })
+        body: JSON.stringify({ scope, layer, clip, effectIndex: Number(removeIndex), targetId })
       });
       const data = (await response.json()) as { error?: string; message?: string };
 

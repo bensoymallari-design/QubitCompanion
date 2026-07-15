@@ -64,6 +64,7 @@ export interface NdiPreset {
   id: string;
   name: string;
   source: ResolumeSource;
+  targetId?: string;
   layer: number;
   clip: number;
   trigger: boolean;

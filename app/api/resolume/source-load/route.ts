@@ -7,13 +7,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as ResolumeSourceLoadRequest;
+    const body = (await request.json()) as ResolumeSourceLoadRequest & { targetId?: string };
 
     if (!body.source?.name || !body.layer || !body.clip) {
       return jsonError(new Error("source, layer, and clip are required"), 400);
     }
 
-    const service = await ResolumeService.fromSettings();
+    const service = await ResolumeService.forTarget(body.targetId);
     return jsonOk(await service.loadSource(body));
   } catch (error) {
     return jsonError(error, 503);

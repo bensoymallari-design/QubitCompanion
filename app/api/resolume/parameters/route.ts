@@ -1,4 +1,4 @@
-import { jsonError, jsonOk, parseNumber } from "@/lib/api";
+import { jsonError, jsonOk, parseNumber, targetIdFromRequest } from "@/lib/api";
 import { ResolumeService } from "@/services/resolume";
 import type { ResolumeControlScope, ResolumeParameterValue } from "@/types/resolume";
 
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const scope = (url.searchParams.get("scope") ?? "clip") as ResolumeControlScope;
-    const service = await ResolumeService.fromSettings();
+    const service = await ResolumeService.forTarget(targetIdFromRequest(request));
     const parameters = await service.parameters({
       scope,
       layer: parseNumber(url.searchParams.get("layer")),
@@ -24,13 +24,13 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const body = (await request.json()) as { id?: string; value?: ResolumeParameterValue };
+    const body = (await request.json()) as { id?: string; value?: ResolumeParameterValue; targetId?: string };
 
     if (!body.id) {
       return jsonError(new Error("Parameter id is required"), 400);
     }
 
-    const service = await ResolumeService.fromSettings();
+    const service = await ResolumeService.forTarget(body.targetId);
     return jsonOk(await service.updateParameter(body.id, body.value ?? null));
   } catch (error) {
     return jsonError(error, 503);

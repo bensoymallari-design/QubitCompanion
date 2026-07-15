@@ -18,7 +18,7 @@ import {
 import { databasePath, ndiPresetsPath, resolveFromRoot, settingsPath, thumbnailsPath, uploadsPath } from "@/lib/paths";
 import type { MediaDatabase, MediaExtension, MediaFile, MediaKind, MediaListQuery } from "@/types/media";
 import type { NdiPreset } from "@/types/resolume";
-import { DEFAULT_SETTINGS, type AppSettings } from "@/types/settings";
+import { DEFAULT_SETTINGS, type AppSettings, type ResolumeTarget } from "@/types/settings";
 import { safeFilename } from "@/utils/format";
 
 const EMPTY_DATABASE: MediaDatabase = { files: [] };
@@ -69,22 +69,66 @@ export async function writeDatabase(database: MediaDatabase): Promise<void> {
 
 export async function readSettings(): Promise<AppSettings> {
   const settings = await readJson<AppSettings>(settingsPath(), DEFAULT_SETTINGS);
-  return { ...DEFAULT_SETTINGS, ...settings };
+  return normalizeSettings({ ...DEFAULT_SETTINGS, ...settings });
 }
 
 export async function writeSettings(settings: AppSettings): Promise<AppSettings> {
-  const normalized: AppSettings = {
-    resolumeIp: settings.resolumeIp?.trim() || DEFAULT_SETTINGS.resolumeIp,
-    resolumePort: Number(settings.resolumePort) || DEFAULT_SETTINGS.resolumePort,
+  const normalized = normalizeSettings(settings);
+
+  await ensureWritableUploadFolder(normalized.uploadFolder);
+  await writeJson(settingsPath(), normalized);
+  return normalized;
+}
+
+function normalizeSettings(settings: AppSettings): AppSettings {
+  const targets = normalizeResolumeTargets(settings);
+  const primary = targets[0] ?? DEFAULT_SETTINGS.resolumeTargets[0];
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    resolumeIp: primary.ip,
+    resolumePort: primary.port,
+    resolumeTargets: targets,
     uploadFolder: normalizeUploadFolder(settings.uploadFolder),
     autoRefresh: Boolean(settings.autoRefresh),
     darkMode: Boolean(settings.darkMode),
     allowSystemControls: Boolean(settings.allowSystemControls)
   };
+}
 
-  await ensureWritableUploadFolder(normalized.uploadFolder);
-  await writeJson(settingsPath(), normalized);
-  return normalized;
+function normalizeResolumeTargets(settings: AppSettings): ResolumeTarget[] {
+  const rawTargets = Array.isArray(settings.resolumeTargets) && settings.resolumeTargets.length > 0
+    ? settings.resolumeTargets
+    : [
+        {
+          id: "local",
+          name: "Local Resolume",
+          ip: settings.resolumeIp || DEFAULT_SETTINGS.resolumeIp,
+          port: Number(settings.resolumePort) || DEFAULT_SETTINGS.resolumePort
+        }
+      ];
+  const seen = new Set<string>();
+
+  return rawTargets
+    .map((target, index) => {
+      const id = target.id?.trim() || `target-${index + 1}`;
+      const normalized: ResolumeTarget = {
+        id,
+        name: target.name?.trim() || `Resolume ${index + 1}`,
+        ip: target.ip?.trim() || DEFAULT_SETTINGS.resolumeIp,
+        port: Number(target.port) || DEFAULT_SETTINGS.resolumePort
+      };
+
+      return normalized;
+    })
+    .filter((target) => {
+      if (seen.has(target.id)) {
+        return false;
+      }
+      seen.add(target.id);
+      return true;
+    });
 }
 
 export async function readNdiPresets(): Promise<NdiPreset[]> {

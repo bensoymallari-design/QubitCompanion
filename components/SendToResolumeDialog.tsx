@@ -5,10 +5,13 @@ import { ResolumeAdvancedControls } from "@/components/ResolumeAdvancedControls"
 import { useToast } from "@/components/ToastProvider";
 import type { MediaFile } from "@/types/media";
 import type { ResolumeClip, ResolumeLayer } from "@/types/resolume";
+import type { AppSettings, ResolumeTarget } from "@/types/settings";
 
 export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClose: () => void }) {
   const [layers, setLayers] = useState<ResolumeLayer[]>([]);
   const [clips, setClips] = useState<ResolumeClip[]>([]);
+  const [targets, setTargets] = useState<ResolumeTarget[]>([]);
+  const [targetId, setTargetId] = useState("");
   const [layer, setLayer] = useState(1);
   const [clip, setClip] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -17,9 +20,26 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
   const { notify } = useToast();
 
   useEffect(() => {
-    async function loadTargets() {
+    async function loadTargetSettings() {
       try {
-        const [layersResponse, clipsResponse] = await Promise.all([fetch("/api/resolume/layers"), fetch("/api/resolume/clips")]);
+        const response = await fetch("/api/settings", { cache: "no-store" });
+        const data = (await response.json()) as { settings?: AppSettings };
+        const nextTargets = data.settings?.resolumeTargets ?? [];
+        setTargets(nextTargets);
+        setTargetId((current) => current || nextTargets[0]?.id || "");
+      } catch {
+        setTargets([]);
+      }
+    }
+
+    loadTargetSettings();
+  }, []);
+
+  useEffect(() => {
+    async function loadResolumeTargets() {
+      try {
+        const params = targetId ? `?targetId=${encodeURIComponent(targetId)}` : "";
+        const [layersResponse, clipsResponse] = await Promise.all([fetch(`/api/resolume/layers${params}`), fetch(`/api/resolume/clips${params}`)]);
         const layersData = (await layersResponse.json()) as { layers?: ResolumeLayer[] };
         const clipsData = (await clipsResponse.json()) as { clips?: ResolumeClip[] };
         setLayers(layersData.layers ?? []);
@@ -30,8 +50,8 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
       }
     }
 
-    loadTargets();
-  }, []);
+    loadResolumeTargets();
+  }, [targetId]);
 
   useEffect(() => {
     setClip(1);
@@ -44,7 +64,7 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
       const response = await fetch("/api/resolume/load", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fileId: file.id, layer, clip, trigger: triggerAfterLoad })
+        body: JSON.stringify({ fileId: file.id, layer, clip, trigger: triggerAfterLoad, targetId })
       });
       const data = (await response.json()) as { error?: string; message?: string };
 
@@ -91,6 +111,16 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
         )}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <label className="block sm:col-span-2">
+            <span className="text-sm font-bold text-slate-300">Resolume Target</span>
+            <select value={targetId} disabled={loading} onChange={(event) => setTargetId(event.target.value)} className="mt-2 min-h-14 w-full rounded-2xl bg-slate-950 px-4 disabled:cursor-not-allowed disabled:opacity-50">
+              {targets.map((target) => (
+                <option key={target.id} value={target.id}>
+                  {target.name} - {target.ip}:{target.port}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="block">
             <span className="text-sm font-bold text-slate-300">Layer</span>
             <select value={layer} disabled={loading} onChange={(event) => setLayer(Number(event.target.value))} className="mt-2 min-h-14 w-full rounded-2xl bg-slate-950 px-4 disabled:cursor-not-allowed disabled:opacity-50">
@@ -141,7 +171,7 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
             disabled={loading}
             onClick={async () => {
               try {
-                await postResolumeAction("/api/resolume/trigger", { layer, clip });
+                await postResolumeAction("/api/resolume/trigger", { layer, clip, targetId });
                 notify("Clip triggered", "success");
               } catch (error) {
                 notify(error instanceof Error ? error.message : "Trigger failed", "error");
@@ -156,7 +186,7 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
             disabled={loading}
             onClick={async () => {
               try {
-                await postResolumeAction("/api/resolume/stop", { layer, clip });
+                await postResolumeAction("/api/resolume/stop", { layer, clip, targetId });
                 notify("Clip stopped", "info");
               } catch (error) {
                 notify(error instanceof Error ? error.message : "Stop failed", "error");
@@ -168,13 +198,13 @@ export function SendToResolumeDialog({ file, onClose }: { file: MediaFile; onClo
           </button>
         </div>
 
-        <ResolumeAdvancedControls layer={layer} clip={clip} />
+        <ResolumeAdvancedControls layer={layer} clip={clip} targetId={targetId} />
       </div>
     </div>
   );
 }
 
-async function postResolumeAction(url: string, body: { layer: number; clip: number }) {
+async function postResolumeAction(url: string, body: { layer: number; clip: number; targetId?: string }) {
   const response = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
