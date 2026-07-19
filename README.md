@@ -130,8 +130,50 @@ Requirements for remote Resolume targets:
 
 For best reliability with uploaded files, run Qubit Companion on the same PC as the Resolume instance you are sending local files to. NDI sources can be network-based as long as the selected Resolume target can see them.
 
+## CompanionAgent media sync
+
+Qubit Companion exposes a manifest endpoint for lightweight media sync agents:
+
+```text
+http://SERVER-IP:3000/api/agent/manifest
+```
+
+The response matches the CompanionAgent format:
+
+```json
+{
+  "files": [
+    {
+      "path": "videos/<id>-example.mp4",
+      "url": "http://SERVER-IP:3000/api/files/<id>/raw",
+      "size": 123456,
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "mimeType": "video/mp4"
+    }
+  ]
+}
+```
+
+Use this as the agent `manifest_url`. The agent downloads the `url` values and stores them under its local `media_root`, so each Resolume PC can load files from a local path.
+
+Optional SHA-256 hashes:
+
+```text
+http://SERVER-IP:3000/api/agent/manifest?sha256=true
+```
+
+Optional bearer-token protection can be enabled by setting an environment variable before starting the app:
+
+```powershell
+$env:COMPANION_AGENT_TOKEN="your-secret-token"
+npm run start
+```
+
+Then set the same token as `auth_token` in the CompanionAgent config.
+
 ## API routes
 
+- `GET /api/agent/manifest`
 - `POST /api/upload`
 - `GET /api/files`
 - `GET /api/files/[id]`
