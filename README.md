@@ -138,6 +138,12 @@ Qubit Companion exposes a manifest endpoint for lightweight media sync agents:
 http://SERVER-IP:3000/api/agent/manifest
 ```
 
+For compatibility with older CompanionAgent configs, this alias is also available:
+
+```text
+http://SERVER-IP:3000/api/resolume/media-manifest
+```
+
 The response matches the CompanionAgent format:
 
 ```json
@@ -160,6 +166,7 @@ Optional SHA-256 hashes:
 
 ```text
 http://SERVER-IP:3000/api/agent/manifest?sha256=true
+http://SERVER-IP:3000/api/resolume/media-manifest?sha256=true
 ```
 
 Optional bearer-token protection can be enabled by setting an environment variable before starting the app:
@@ -174,6 +181,7 @@ Then set the same token as `auth_token` in the CompanionAgent config.
 ## API routes
 
 - `GET /api/agent/manifest`
+- `GET /api/resolume/media-manifest`
 - `POST /api/upload`
 - `GET /api/files`
 - `GET /api/files/[id]`
